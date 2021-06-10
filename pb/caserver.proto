@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package pb;
+
+import "google/api/annotations.proto";
+
+
+// The ca service definition.
+service Caserver {
+
+    // Net Admin Enroll
+    rpc NetAdminEnroll(EnrollNetRequest) returns (EnrollResponse) {
+        option (google.api.http) = {
+                            post: "/net/enroll"
+                            body: "*"
+                        };
+    }
+
+    // Node Enroll
+    rpc NodeEnroll(EnrollNodeRequest) returns (EnrollResponse) {
+        option (google.api.http) = {
+                            post: "/node/enroll"
+                            body: "*"
+                        };
+    }
+
+    // Get Current Cert
+    rpc GetCurrentCert(CurrentCertRequest) returns (CurrentCertResponse) {
+    }
+
+    // Get Revoke List
+    rpc GetRevokeList(RevokeListRequest) returns (RevokeListResponse) {
+    }
+
+    // Revoke a node
+    rpc RevokeCert(RevokeNodeRequest) returns (RevokeNodeResponse) {
+        option (google.api.http) = {
+                                    post: "/node/revoke"
+                                    body: "*"
+                                };
+    }
+}
+
+message Sign {
+    string address = 1;
+    string publicKey = 2;
+    bytes sign = 3;
+    string nonce = 5;
+}
+
+message EnrollNetRequest {
+    string logid = 1;
+    Sign sign = 2;
+    string address = 3;
+    string net = 4;
+}
+
+message EnrollNodeRequest {
+    string logid = 1;
+    Sign sign = 2;
+    string address = 3;
+    string net = 4;
+    string adminAddress = 5;
+}
+
+message EnrollResponse {
+    string logid = 1;
+}
+
+// The request message of  Get Current Cert
+message CurrentCertRequest {
+    string logid = 1;
+    Sign sign = 2;
+    string net = 3;
+    string address = 4;
+}
+
+message CurrentCertResponse {
+    string logid = 1;
+    string caCert = 2;
+    string cert = 3;
+    string privateKey = 4;
+    string nodeHdPriKey = 5;
+}
+
+message RevokeListRequest {
+    string logid = 1;
+    Sign sign = 2;
+    string net = 3;
+    string serial_num = 4;
+}
+
+message RevokeListResponse {
+    string logid = 1;
+    repeated RevokeNode list = 2;
+}
+
+message RevokeNode {
+    int64 id = 1;
+    string serialNum = 2;
+    int64 createTime = 3;
+    string address = 4;
+    string publicKey = 5;
+    bytes sign = 6;
+}
+
+message RevokeNodeRequest{
+    string logid = 1;
+    Sign sign = 2;
+    string net = 3;
+    string address = 4;
+}
+
+message RevokeNodeResponse{
+    string logid = 1;
+}
+

@@ -1,0 +1,8 @@
+.DS_Store
+.svn
+.tmp
+.download
+output
+.*.swp
+.*.swo
+*/output

@@ -1,0 +1,40 @@
+# xchain地址配置
+xchainServer:
+  # xchain tls的地址,如果不用的话可以不配置
+  host: 10.23.30.15:37301
+  # front 作为xchain代理对其他xchain服务的端口号
+  port: :17101
+  # front证书地址
+  tlsPath: ./data/cert
+  # 是否验证客户端证书
+  tlsVerify: false
+
+# 数据库配置 ./data/db/ca.db
+dbConfig:
+  dbType: sqlite3
+  #dbType: mysql
+  dbPath: /tmp/ca.db
+  mysqlDbUser: root
+  mysqlDbPwd: 123456
+  mysqlDbHost: 10.99.196.224
+  mysqlDbPort: 3306
+  mysqlDbDatabase: front_db
+
+# CA地址
+caConfig:
+  # 远程ca开关, 联盟网络true/公开网络false,  默认true
+  caSwitch: true
+  # 远程ca地址
+  host: 127.0.0.1:8098
+
+# 当前节点的网络名称
+netName: test
+
+# 日志
+log:
+  level: info
+  path: ./logs
+
+# 节点管理员账户地址
+keys: ./data/keys
+
