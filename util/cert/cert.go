@@ -35,23 +35,15 @@ func GenCreds() (credentials.TransportCredentials, error) {
 	cn := config.GetNet()
 
 	var tlsCOnfig *tls.Config
-	if config.GetXchainServer().TlsVerify == true {
-		tlsCOnfig = &tls.Config{
-			ServerName:   cn,
-			Certificates: []tls.Certificate{certificate},
-			RootCAs:      certPool,
-			ClientCAs:    certPool,
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-		}
-	} else {
-		tlsCOnfig = &tls.Config{
-			ServerName:   cn,
-			Certificates: []tls.Certificate{certificate},
-			RootCAs:      certPool,
-			ClientCAs:    certPool,
-			//ClientAuth:   tls.RequireAndVerifyClientCert,
-		}
+
+	tlsCOnfig = &tls.Config{
+		ServerName:   cn,
+		Certificates: []tls.Certificate{certificate},
+		RootCAs:      certPool,
+		ClientCAs:    certPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
 	}
+
 	creds := credentials.NewTLS(
 		tlsCOnfig,
 	)
