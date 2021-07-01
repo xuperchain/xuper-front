@@ -8,11 +8,10 @@ import (
 	"io"
 
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-
 	"github.com/xuperchain/xuper-front/config"
 	util_cert "github.com/xuperchain/xuper-front/util/cert"
-	"github.com/xuperchain/xuper-front/xuperp2p"
+	p2p "github.com/xuperchain/xupercore/protos"
+	"google.golang.org/grpc"
 )
 
 type XchainP2pProxy struct {
@@ -86,53 +85,39 @@ func (cli *XchainP2pProxy) Defer() {
 	//cli.conn.Close()
 }
 
-func (cli *XchainP2pProxy) newClient() (xuperp2p.P2PServiceClient, error) {
-	client := xuperp2p.NewP2PServiceClient(cli.conn)
+func (cli *XchainP2pProxy) newClient() (p2p.P2PServiceClient, error) {
+	client := p2p.NewP2PServiceClient(cli.conn)
 	return client, nil
 }
 
 // SendMessage send message to a peer
-func (cli *XchainP2pProxy) SendMessage(ctx context.Context, msg *xuperp2p.XuperMessage) error {
+func (cli *XchainP2pProxy) SendMessage(ctx context.Context, msg *p2p.XuperMessage) error {
 	client, err := cli.newClient()
 	if err != nil {
+		log.Errorf("XchainP2pProxy::SendMessage::newClient err:", err)
 		return err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream, err := client.SendP2PMessage(ctx)
 	if err != nil {
+		log.Errorf("XchainP2pProxy::SendMessage::SendP2PMessage err:", err)
 		return err
 	}
-	waitc := make(chan struct{})
-	go func() {
-		for {
-			_, err = stream.Recv()
-			if err == io.EOF {
-				close(waitc)
-				return
-			}
-			if err != nil {
-				close(waitc)
-				return
-			}
-		}
-	}()
+	defer stream.CloseSend()
 	err = stream.Send(msg)
 	if err != nil {
-		stream.CloseSend()
+		log.Errorf("XchainP2pProxy::SendMessage::Send err:", err)
 		return err
 	}
-	stream.CloseSend()
-	<-waitc
 	if err == io.EOF {
 		return nil
 	}
-	log.Debug("proxy SendMessage msg:", msg)
 	return err
 }
 
 // SendMessageWithResponse send message to a peer with responce
-func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *xuperp2p.XuperMessage) (*xuperp2p.XuperMessage, error) {
+func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
 	client, err := cli.newClient()
 	if err != nil {
 		return nil, err
@@ -144,7 +129,7 @@ func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *xup
 		return nil, err
 	}
 
-	res := &xuperp2p.XuperMessage{}
+	res := &p2p.XuperMessage{}
 	waitc := make(chan struct{})
 	go func() {
 		for {
@@ -171,6 +156,5 @@ func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *xup
 	}
 	stream.CloseSend()
 	<-waitc
-	log.Debug("proxy SendMessageWithResponse ret:", res, err)
 	return res, err
 }
