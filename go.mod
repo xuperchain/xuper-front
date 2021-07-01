@@ -5,7 +5,6 @@ go 1.13
 replace github.com/tjfoc/gmsm v1.2.3 => github.com/bd4gm/gmsm v1.2.6
 
 require (
-	bou.ke/monkey v1.0.2
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
