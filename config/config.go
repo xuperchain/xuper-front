@@ -34,9 +34,12 @@ func (c *Config) SetDefaults() {
 }
 
 type XchainServer struct {
-	Host    string `yaml:"host,omitempty"`
-	Port    string `yaml:"port,omitempty"`
-	TlsPath string `yaml:"tlsPath,omitempty"`
+	Host      string `yaml:"host,omitempty"`
+	Port      string `yaml:"port,omitempty"`
+	Rpc       string `yaml:"rpc,omitempty"`
+	TlsPath   string `yaml:"tlsPath,omitempty"`
+	TlsVerify bool   `yaml:"tlsVerify,omitempty"`
+	Master    string `yaml:"master,omitempty"`
 }
 
 //SetDefaults set default values
