@@ -12,87 +12,39 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/xuperchain/xuper-front/config"
-	clixchain "github.com/xuperchain/xuper-front/server/client"
-	serv_ca "github.com/xuperchain/xuper-front/service/ca"
-	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/prxyxchain"
-	util_cert "github.com/xuperchain/xuper-front/util/cert"
-	p2p "github.com/xuperchain/xupercore/protos"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/xuperchain/xuper-front/config"
+	serv_ca "github.com/xuperchain/xuper-front/service/ca"
+	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/prxyxchain"
+	util_cert "github.com/xuperchain/xuper-front/util/cert"
+	"github.com/xuperchain/xuper-front/xuperp2p"
+	xuper_p2p "github.com/xuperchain/xuper-front/xuperp2p"
 )
 
-const (
-	// MaxRecvMsgSize max message size
-	MaxRecvMsgSize = 1024 * 1024 * 1024
-	// MaxConcurrentStreams max concurrent
-	MaxConcurrentStreams = 1000
-	// GRPCTIMEOUT grpc timeout
-	GRPCTIMEOUT = 20
-)
+// MaxRecvMsgSize max message size
+const MaxRecvMsgSize = 1024 * 1024 * 1024
 
-var (
-	ErrUnAuthorized  = errors.New("Request UnAuthorized error")
-	ErrInvalidPKType = errors.New("unknown type of public key")
-	ErrParseEcdsa    = errors.New("parse ecdsa public key error")
-	ErrRpcAddInvalid = errors.New("address invalid")
-)
+// MaxConcurrentStreams max concurrent
+const MaxConcurrentStreams = 1000
 
-type xchainProxyServer struct {
-	groups map[string]*clixchain.GroupClient
-}
+// GRPCTIMEOUT grpc timeout
+const GRPCTIMEOUT = 20
 
-func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
-	if value, ok := proxy.groups[bcName]; ok {
-		for _, v := range value.Cache.Get() {
-			if v == from {
-				return true
-			}
-		}
-		return false
-	}
-	client, err := clixchain.NewClientServer(bcName)
-	if err != nil {
-		return false
-	}
-	err = client.Init()
-	if err != nil {
-		log.Errorf("XchainProxyServer::CheckParachainAuth, Init err:%v", err)
-		return false
-	}
-	proxy.groups[bcName] = client
-	for _, v := range client.Cache.Get() {
-		if v == from {
-			return true
-		}
-	}
-	return false
-}
+type xchainProxyServer struct{}
 
-func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP2PMessageServer) error {
+func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer xuperp2p.P2PService_SendP2PMessageServer) error {
 	in, err := p2pMsgServer.Recv()
 	if err == io.EOF {
 		log.Debug(in.GetHeader().Logid, err)
 		return nil
 	}
 	if err != nil {
-		if in.GetHeader() != nil {
-			log.Debug(in.GetHeader().Logid, err)
-		}
+		log.Debug(in.GetHeader().Logid, err)
 		return err
-	}
-	if config.GetXchainServer().Master != "" {
-		address := p2pMsgServer.Context().Value("address")
-		add, ok := address.(string)
-		if !ok {
-			return ErrRpcAddInvalid
-		}
-		if in.GetHeader().GetBcname() != config.GetXchainServer().Master &&
-			!proxy.CheckParachainAuth(in.GetHeader().GetBcname(), add) {
-			return ErrUnAuthorized
-		}
 	}
 	ret, err := handleReceivedMsg(in)
 	if ret != nil {
@@ -101,7 +53,7 @@ func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP
 	return err
 }
 
-func handleReceivedMsg(msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
+func handleReceivedMsg(msg *xuperp2p.XuperMessage) (*xuperp2p.XuperMessage, error) {
 	c := serv_proxy_xchain.GetXchainP2pProxy()
 	if c == nil {
 		return nil, errors.New("cat get client")
@@ -110,10 +62,11 @@ func handleReceivedMsg(msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
 
 	// check msg type
 	msgType := msg.GetHeader().GetType()
-	if msgType != p2p.XuperMessage_POSTTX && msgType != p2p.XuperMessage_SENDBLOCK && msgType !=
-		p2p.XuperMessage_BATCHPOSTTX && msgType != p2p.XuperMessage_NEW_BLOCKID {
+	if msgType != xuper_p2p.XuperMessage_POSTTX && msgType != xuper_p2p.XuperMessage_SENDBLOCK && msgType !=
+		xuper_p2p.XuperMessage_BATCHPOSTTX && msgType != xuper_p2p.XuperMessage_NEW_BLOCKID {
 		// 期望节点处理后有返回的请求
 		ret, err := c.SendMessageWithResponse(context.Background(), msg)
+		log.Debug("SendMessageWithResponse,", ret, err)
 		return ret, err
 	}
 
@@ -129,10 +82,7 @@ func StartXchainProxyServer(quit chan int) {
 	if err != nil {
 		log.Errorf("StartXchainProxyServer failed to listen: %v\n", err)
 	}
-	proxy := xchainProxyServer{}
-	if config.GetXchainServer().Master != "" {
-		proxy.groups = make(map[string]*clixchain.GroupClient)
-	}
+
 	var s *grpc.Server
 	// 是否使用tls
 	if config.GetCaConfig().CaSwitch {
@@ -143,12 +93,13 @@ func StartXchainProxyServer(quit chan int) {
 		}
 		s = grpc.NewServer(grpc.StreamInterceptor(CheckInterceptor()), grpc.Creds(creds), grpc.MaxRecvMsgSize(MaxRecvMsgSize),
 			grpc.MaxConcurrentStreams(MaxConcurrentStreams), grpc.ConnectionTimeout(time.Second*time.Duration(GRPCTIMEOUT)))
-		p2p.RegisterP2PServiceServer(s, &proxy)
+		xuperp2p.RegisterP2PServiceServer(s, &xchainProxyServer{})
 	} else {
 		s = grpc.NewServer(grpc.MaxRecvMsgSize(MaxRecvMsgSize),
 			grpc.MaxConcurrentStreams(MaxConcurrentStreams), grpc.ConnectionTimeout(time.Second*time.Duration(GRPCTIMEOUT)))
-		p2p.RegisterP2PServiceServer(s, &proxy)
+		xuperp2p.RegisterP2PServiceServer(s, &xchainProxyServer{})
 	}
+
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 
@@ -172,34 +123,6 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		if ok == false {
 			return errors.New("cert is not valid")
 		}
-		if config.GetXchainServer().Master == "" {
-			return handler(srv, ss)
-		}
-		if len(hh.Subject.OrganizationalUnit) == 0 {
-			return errors.New("cert is not valid, xchain address is empty.")
-		}
-		address := hh.Subject.OrganizationalUnit[0]
-		ctx := context.WithValue(ss.Context(), "address", address)
-		return handler(srv, newWrappedStream(ss, &ctx))
+		return handler(srv, ss)
 	}
-}
-
-////////////// wrappedStream ///////////////
-
-type wrappedStream struct {
-	grpc.ServerStream
-	Ctx *context.Context
-}
-
-// Context 的作用为覆盖stream的Context方法
-func (w *wrappedStream) Context() context.Context {
-	return *w.Ctx
-}
-
-func newWrappedStream(s grpc.ServerStream, ctx *context.Context) grpc.ServerStream {
-	wrapper := wrappedStream{
-		ServerStream: s,
-		Ctx:          ctx,
-	}
-	return grpc.ServerStream(&wrapper)
 }
