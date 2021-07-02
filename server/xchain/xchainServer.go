@@ -11,8 +11,8 @@ import (
 	"net"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/xuperchain/xuper-front/config"
+	logs "github.com/xuperchain/xuper-front/logs"
 	clixchain "github.com/xuperchain/xuper-front/server/client"
 	serv_ca "github.com/xuperchain/xuper-front/service/ca"
 	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/prxyxchain"
@@ -42,6 +42,8 @@ var (
 
 type xchainProxyServer struct {
 	groups map[string]*clixchain.GroupClient
+
+	log logs.Logger
 }
 
 func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
@@ -59,7 +61,7 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 	}
 	err = client.Init()
 	if err != nil {
-		log.Errorf("XchainProxyServer::CheckParachainAuth, Init err:%v", err)
+		proxy.log.Error("XchainProxyServer::CheckParachainAuth::Init error", "err", err)
 		return false
 	}
 	proxy.groups[bcName] = client
@@ -74,12 +76,12 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP2PMessageServer) error {
 	in, err := p2pMsgServer.Recv()
 	if err == io.EOF {
-		log.Debug(in.GetHeader().Logid, err)
+		proxy.log.Info(in.GetHeader().Logid, err)
 		return nil
 	}
 	if err != nil {
 		if in.GetHeader() != nil {
-			log.Debug(in.GetHeader().Logid, err)
+			proxy.log.Info(in.GetHeader().Logid, err)
 		}
 		return err
 	}
@@ -126,10 +128,13 @@ func handleReceivedMsg(msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
 func StartXchainProxyServer(quit chan int) {
 	// start server
 	lis, err := net.Listen("tcp", config.GetXchainServer().Port)
+	log, err := logs.NewLogger("xchainProxyServer")
 	if err != nil {
-		log.Errorf("StartXchainProxyServer failed to listen: %v\n", err)
+		return
 	}
-	proxy := xchainProxyServer{}
+	proxy := xchainProxyServer{
+		log: log,
+	}
 	if config.GetXchainServer().Master != "" {
 		proxy.groups = make(map[string]*clixchain.GroupClient)
 	}
@@ -139,7 +144,7 @@ func StartXchainProxyServer(quit chan int) {
 		// 接收xchian过来的tls请求
 		creds, err := util_cert.GenCreds()
 		if err != nil {
-			log.Errorf("StartXchainProxyServer failed to serve: %v\n", err)
+			proxy.log.Error("XchainProxyServer::StartXchainProxyServer::failed to serve", "err", err)
 		}
 		s = grpc.NewServer(grpc.StreamInterceptor(CheckInterceptor()), grpc.Creds(creds), grpc.MaxRecvMsgSize(MaxRecvMsgSize),
 			grpc.MaxConcurrentStreams(MaxConcurrentStreams), grpc.ConnectionTimeout(time.Second*time.Duration(GRPCTIMEOUT)))
@@ -152,10 +157,10 @@ func StartXchainProxyServer(quit chan int) {
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 
-	log.Infof("StartXchainProxyServer start server for xchain proxy, %v", config.GetXchainServer().Port)
+	proxy.log.Info("XchainProxyServer::StartXchainProxyServer::server start", "Port", config.GetXchainServer().Port)
 
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("StartXchainProxyServer failed, err: %v\n", err)
+		proxy.log.Error("XchainProxyServer::StartXchainProxyServer::serve failed", "err", err)
 		quit <- 1
 	}
 }

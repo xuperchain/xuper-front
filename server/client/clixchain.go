@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	log "github.com/sirupsen/logrus"
 	"github.com/xuperchain/xuper-front/config"
+	logs "github.com/xuperchain/xuper-front/logs"
 	pb "github.com/xuperchain/xuperchain/service/pb"
 	"github.com/xuperchain/xupercore/lib/utils"
 
@@ -47,6 +47,8 @@ type GroupClient struct {
 	BcName string
 	Cache  *groupCache
 	once   sync.Once
+
+	log logs.Logger
 }
 
 func (cli *GroupClient) Init() error {
@@ -107,7 +109,7 @@ func (cli *GroupClient) KernelPreExec(moduleName, contractName, methodName strin
 
 	initiator, err := readAddress()
 	if err != nil {
-		return nil, fmt.Errorf("GroupClient::Get initiator error: %s", err.Error())
+		return nil, fmt.Errorf("GroupClient::KernelPreExec::Get initiator error: %s", err.Error())
 	}
 	preExeRPCReq.Initiator = initiator
 	preExeRPCReq.AuthRequire = []string{initiator}
@@ -138,6 +140,7 @@ func (cli *GroupClient) Subscribe(filter []byte) (*streamWrapper, error) {
 		EventService_SubscribeClient: stream,
 		newEvent:                     make(chan []string, 1),
 		close:                        make(chan int64, 1),
+		log:                          cli.log,
 	}, nil
 }
 
@@ -160,7 +163,7 @@ func (cli *GroupClient) listenEvent(s streamWrapper) {
 				s.close <- done
 				return
 			case value := <-s.newEvent:
-				log.Infof("GroupClient::listenEvent:refresh %v", value)
+				cli.log.Info("GroupClient::listenEvent:refresh value", "value", value)
 				cli.Cache.ch <- value
 			}
 		}
@@ -169,6 +172,10 @@ func (cli *GroupClient) listenEvent(s streamWrapper) {
 
 // StartClientServer start server for lcv
 func NewClientServer(bcName string) (*GroupClient, error) {
+	log, err := logs.NewLogger("xchainProxyServer")
+	if err != nil {
+		return nil, err
+	}
 	conn, err := grpc.Dial(config.GetXchainServer().Rpc, grpc.WithInsecure(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxRecvMsgSize)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -177,13 +184,15 @@ func NewClientServer(bcName string) (*GroupClient, error) {
 			PermitWithoutStream: true,             // send pings even without active streams
 		}))
 	if err != nil {
-		log.Errorf("StartClientServer create conn to xchain failed, bcname = %s", bcName)
+		log.Error("GroupClient::NewClientServer::create conn to xchain failed", "bcName", bcName)
 		return nil, err
 	}
 	cli := GroupClient{
 		XchainClient:       pb.NewXchainClient(conn),
 		EventServiceClient: pb.NewEventServiceClient(conn),
 		BcName:             bcName,
+
+		log: log,
 	}
 	return &cli, nil
 }
@@ -193,6 +202,8 @@ type streamWrapper struct {
 	pb.EventService_SubscribeClient
 	newEvent chan []string
 	close    chan int64
+
+	log logs.Logger
 }
 
 func (s *streamWrapper) loop() {
@@ -206,7 +217,7 @@ func (s *streamWrapper) loop() {
 				return
 			}
 			if err != nil {
-				log.Errorf("GroupClient::loop:: Get block event err: %v", err)
+				s.log.Error("GroupClient::loop::Get block event error", "err", err)
 				return
 			}
 			s.getEvent(event)
@@ -218,7 +229,7 @@ func (s *streamWrapper) getEvent(event *pb.Event) {
 	var block pb.FilteredBlock
 	err := proto.Unmarshal(event.Payload, &block)
 	if err != nil {
-		log.Errorf("GroupClient::getEvent::get block event err: %v", err)
+		s.log.Error("GroupClient::getEvent::get block event error", "err", err)
 		return
 	}
 	if len(block.GetTxs()) == 0 {

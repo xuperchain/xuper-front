@@ -4,11 +4,11 @@
 package config
 
 import (
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -31,6 +31,7 @@ func (c *Config) SetDefaults() {
 	c.DbConfig = DbConfig{}
 	c.CaConfig = CaConfig{}
 	c.Log = Log{}
+	c.Log.SetDefaults()
 }
 
 type XchainServer struct {
@@ -70,12 +71,16 @@ func (c CaConfig) SetDefaults() {
 }
 
 type Log struct {
-	Level string `yaml:"level,omitempty"`
-	Path  string `yaml:"path,omitempty"`
+	Level     string `yaml:"level,omitempty"`
+	Path      string `yaml:"path,omitempty"`
+	FrontName string `yaml:"frontName,omitempty"`
 }
 
 //SetDefaults set default values
-func (c Log) SetDefaults() {
+func (c *Log) SetDefaults() {
+	c.Level = "debug"
+	c.Path = "./logs"
+	c.FrontName = "xfront"
 }
 
 func InstallFrontConfig(configFile string) error {
@@ -93,15 +98,11 @@ func InstallFrontConfig(configFile string) error {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Println("Read config file error!", "err", err.Error())
-		return nil
+		return fmt.Errorf("Config::InstallFrontConfig::Read config file error, %v", err.Error())
 	}
 	if err := viper.Unmarshal(config); err != nil {
-		log.Println("Unmarshal config from file error! error=", err.Error())
-		return nil
+		return fmt.Errorf("Config::InstallFrontConfig::Unmarshal config from file error, %v", err.Error())
 	}
-
-	printConfig()
 
 	// 监听配置变化, 重启加载
 	//viper.WatchConfig()
@@ -115,8 +116,8 @@ func InstallFrontConfig(configFile string) error {
 	return nil
 }
 
-func printConfig() {
-	log.Printf("init config: %+v", config)
+func printConfig() *Config {
+	return config
 }
 
 func GetConfig() *Config {

@@ -10,16 +10,14 @@ import (
 	"runtime/pprof"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	cmd_ca "github.com/xuperchain/xuper-front/cmd/command/ca"
 	"github.com/xuperchain/xuper-front/config"
 	"github.com/xuperchain/xuper-front/dao"
+	"github.com/xuperchain/xuper-front/logs"
 	server_xchain "github.com/xuperchain/xuper-front/server/xchain"
 	serv_ca "github.com/xuperchain/xuper-front/service/ca"
-	util_file "github.com/xuperchain/xuper-front/util/file"
 )
 
 const defaultConfigFile = "./conf/front.yaml"
@@ -32,10 +30,6 @@ func newFrontCommand() (*cobra.Command, error) {
 		Short: "front",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.SetOutput(util_file.GetLogOut())
-			level, _ := log.ParseLevel(config.GetLog().Level)
-			log.SetLevel(level)
-
 			// 启动front
 			sigc := make(chan os.Signal, 1)
 			signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
@@ -54,7 +48,6 @@ func newFrontCommand() (*cobra.Command, error) {
 					return nil
 				}
 			}
-			return nil
 		},
 	}
 	//flags := frontCmd.Flags()
@@ -75,27 +68,21 @@ func runFrontServer() error {
 	if err != nil {
 		return err
 	}
-
+	logs.InitLog(config.GetLog().FrontName, config.GetLog().Path)
+	serv_ca.StartCaHandler()
 	rootCmd.AddCommand(cmd_ca.NewAddNodeCommand())
 	rootCmd.AddCommand(cmd_ca.NewGetCertCommand())
 	rootCmd.AddCommand(cmd_ca.NewGetRevokeListCmd())
-
-	logrus.SetFormatter(&logrus.TextFormatter{
-		TimestampFormat: "2006-01-02T15:04:05",
-		FullTimestamp:   true,
-	})
 
 	return rootCmd.Execute()
 }
 
 func main() {
 	// init config
-
 	onError := func(err error) {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
-
 	// run
 	if err := runFrontServer(); err != nil {
 		onError(err)

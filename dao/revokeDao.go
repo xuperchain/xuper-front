@@ -6,7 +6,7 @@ package dao
 import (
 	"errors"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/xuperchain/xuper-front/logs"
 )
 
 type Revoke struct {
@@ -18,6 +18,7 @@ type Revoke struct {
 
 // front 本地的撤销节点列表
 type RevokeDao struct {
+	Log logs.Logger
 }
 
 // 通过serialNum查询是否存在已撤销的证书
@@ -31,7 +32,7 @@ func (revokeDao *RevokeDao) GetBySerialNum(serialNum string) (*Revoke, error) {
 	err := caDb.db.Get(&revoke,
 		"SELECT * FROM revoke_node WHERE serial_num=?", serialNum)
 	if err != nil {
-		log.Warning(err)
+		revokeDao.Log.Warn("RevokeDao::GetBySerialNum", "err", err)
 		return nil, err
 	}
 	return &revoke, nil
@@ -47,12 +48,12 @@ func (revokeDao *RevokeDao) Insert(revoke *Revoke) (int64, error) {
 		revoke.SerialNum,
 		revoke.CreateTime)
 	if err != nil {
-		log.Warning(err)
+		revokeDao.Log.Warn("RevokeDao::Insert", "err", err)
 		return 0, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		log.Warning(err)
+		revokeDao.Log.Warn("RevokeDao::Insert", "err", err)
 		return 0, err
 	}
 	return id, nil
