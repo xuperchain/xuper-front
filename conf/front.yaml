@@ -6,8 +6,6 @@ xchainServer:
   port: :17101
   # front证书地址
   tlsPath: ./data/cert
-  # 是否验证客户端证书
-  tlsVerify: false
 
 # 数据库配置 ./data/db/ca.db
 dbConfig:
