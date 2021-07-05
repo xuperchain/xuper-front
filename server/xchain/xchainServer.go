@@ -183,7 +183,7 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		if len(hh.Subject.OrganizationalUnit) == 0 {
 			return errors.New("cert is not valid, xchain address is empty.")
 		}
-		address := hh.Subject.OrganizationalUnit[0]
+		address := hh.Subject.CommonName
 		ctx := context.WithValue(ss.Context(), "address", address)
 		return handler(srv, newWrappedStream(ss, &ctx))
 	}
