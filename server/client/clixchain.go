@@ -214,6 +214,7 @@ func (s *streamWrapper) loop() {
 		default:
 			event, err := s.EventService_SubscribeClient.Recv()
 			if err == io.EOF {
+				s.log.Error("GroupClient::loop:EventService_SubscribeClient stream meets EOF.")
 				return
 			}
 			if err != nil {

@@ -48,7 +48,8 @@ type xchainProxyServer struct {
 
 func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
 	if value, ok := proxy.groups[bcName]; ok {
-		for _, v := range value.Cache.Get() {
+		groups := value.Cache.Get()
+		for _, v := range groups {
 			if v == from {
 				return true
 			}
@@ -65,7 +66,9 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 		return false
 	}
 	proxy.groups[bcName] = client
-	for _, v := range client.Cache.Get() {
+	groups := client.Cache.Get()
+	proxy.log.Info("XchainProxyServer::CheckParachainAuth::init client", "groups", groups, "bcname", bcName)
+	for _, v := range groups {
 		if v == from {
 			return true
 		}
@@ -183,7 +186,7 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		if len(hh.Subject.OrganizationalUnit) == 0 {
 			return errors.New("cert is not valid, xchain address is empty.")
 		}
-		address := hh.Subject.CommonName
+		address := hh.Subject.OrganizationalUnit[0]
 		ctx := context.WithValue(ss.Context(), "address", address)
 		return handler(srv, newWrappedStream(ss, &ctx))
 	}
