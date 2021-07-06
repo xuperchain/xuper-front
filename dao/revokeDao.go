@@ -4,6 +4,7 @@
 package dao
 
 import (
+	"database/sql"
 	"errors"
 
 	"github.com/xuperchain/xuper-front/logs"
@@ -32,7 +33,9 @@ func (revokeDao *RevokeDao) GetBySerialNum(serialNum string) (*Revoke, error) {
 	err := caDb.db.Get(&revoke,
 		"SELECT * FROM revoke_node WHERE serial_num=?", serialNum)
 	if err != nil {
-		revokeDao.Log.Warn("RevokeDao::GetBySerialNum", "err", err)
+		if err != sql.ErrNoRows {
+			revokeDao.Log.Warn("RevokeDao::GetBySerialNum", "err", err)
+		}
 		return nil, err
 	}
 	return &revoke, nil

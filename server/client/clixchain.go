@@ -61,10 +61,18 @@ func (cli *GroupClient) Init() error {
 	}
 	// 初始化cache
 	group := Group{}
-	err = json.Unmarshal(resp.Body, &group)
+	err = func() error {
+		// 访问xchain错误时，仍监听group字段
+		if resp.Status != StatusSuccess {
+			cli.log.Warn("GroupClient::Init:get group from xchain", "err", resp.Message)
+			return nil
+		}
+		return json.Unmarshal(resp.Body, &group)
+	}()
 	if err != nil {
 		return err
 	}
+	cli.log.Info("GroupClient::Init:get group from xchain", "group", group)
 	set := make(map[string]bool)
 	cache := groupCache{
 		close: make(chan int64, 1),
@@ -155,6 +163,7 @@ func (cli *GroupClient) NewParaFilter() ([]byte, error) {
 
 // Singleton
 func (cli *GroupClient) listenEvent(s streamWrapper) {
+	cli.log.Info("GroupClient::listenEvent:start listen event.")
 	go cli.once.Do(func() {
 		go s.loop()
 		for {

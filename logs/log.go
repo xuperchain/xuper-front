@@ -31,7 +31,7 @@ func InitLog(cfgFile, logDir string) {
 		// 输出日志
 		file := filepath.Join(logDir, cfgFile+".log")
 		nmHandler := log15.Must.FileHandler(file, lfmt)
-		nmfileh := log15.BoundLvlFilterHandler(lvLevel, log15.LvlInfo, nmHandler)
+		nmfileh := log15.LvlFilterHandler(lvLevel, nmHandler)
 		lhd := log15.SyncHandler(log15.MultiHandler(nmfileh))
 		xfLog.SetHandler(lhd)
 		logHandle = xfLog
