@@ -679,11 +679,11 @@ github.com/xuperchain/crypto v0.0.0-20201028025054-4d560674bcd6/go.mod h1:mZKWz+
 github.com/xuperchain/log15 v0.0.0-20190620081506-bc88a9198230 h1:AWFZFbmLhY6VG6IIHD+9ZCgTCuvVRKoK+PRNaxqahl0=
 github.com/xuperchain/log15 v0.0.0-20190620081506-bc88a9198230/go.mod h1:90Da9GDXy9Yle79ZHSJY1c7X+1meBKsoX0vkRy09xis=
 github.com/xuperchain/wagon v0.6.1-0.20200313164333-db544e251599/go.mod h1:PjShksGcTLuvtHxudQ7nOdlvlw2NdbZrTn8jvdY9Mkw=
-github.com/xuperchain/xuperchain v0.0.0-20210630091017-cc2b166890c1 h1:dQK+FzGaFkndULdY3VF9E0z/OgnsBRNYrjdV+VNJJ4E=
-github.com/xuperchain/xuperchain v0.0.0-20210630091017-cc2b166890c1/go.mod h1:6uzliENa2fKtT7l7QlkpwFiqd2ybZ7xVDbhbaMc6lZA=
+github.com/xuperchain/xuperchain v0.0.0-20210706075636-787b0bf509e3 h1:lo9P0qYUkisQAIkMxKoSHHQG0viDApTZc/LA5r2CY4k=
+github.com/xuperchain/xuperchain v0.0.0-20210706075636-787b0bf509e3/go.mod h1:6uzliENa2fKtT7l7QlkpwFiqd2ybZ7xVDbhbaMc6lZA=
 github.com/xuperchain/xupercore v0.0.0-20210608021245-b15f81dd9ecf/go.mod h1:EGiBvEJUzLvzSQSj6npe+f5wsIu/Kwks9A2K7qEzlRU=
-github.com/xuperchain/xupercore v0.0.0-20210609030508-051e239efe17 h1:L1gqlgYvhGg8O/tFd2CDjUrQuOLCMADAtGUcNtRQzHM=
-github.com/xuperchain/xupercore v0.0.0-20210609030508-051e239efe17/go.mod h1:EGiBvEJUzLvzSQSj6npe+f5wsIu/Kwks9A2K7qEzlRU=
+github.com/xuperchain/xupercore v0.0.0-20210707031655-1236705b2ec8 h1:IBIjotYeUviQq/vgS/0RU5tbGqZwcNjiZMfJzg8b7sY=
+github.com/xuperchain/xupercore v0.0.0-20210707031655-1236705b2ec8/go.mod h1:EGiBvEJUzLvzSQSj6npe+f5wsIu/Kwks9A2K7qEzlRU=
 github.com/xuperchain/xvm v0.0.0-20210126142521-68fd016c56d7/go.mod h1:XTaJSLDGYlcAPFb5vWH4vVALckO3V5+wa4zl1mpKMjg=
 gitlab.com/NebulousLabs/errors v0.0.0-20171229012116-7ead97ef90b8/go.mod h1:ZkMZ0dpQyWwlENaeZVBiQRjhMEZvk6VTXquzl3FOFP8=
 gitlab.com/NebulousLabs/fastrand v0.0.0-20181126182046-603482d69e40/go.mod h1:rOnSnoRyxMI3fe/7KIbVcsHRGxe30OONv8dEgo+vCfA=

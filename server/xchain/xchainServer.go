@@ -48,7 +48,7 @@ type xchainProxyServer struct {
 
 func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
 	if value, ok := proxy.groups[bcName]; ok {
-		groups := value.Cache.Get()
+		groups := value.Get()
 		for _, v := range groups {
 			if v == from {
 				return true
@@ -56,17 +56,12 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 		}
 		return false
 	}
-	client, err := clixchain.NewClientServer(bcName)
+	client, err := proxy.RegisterClientServer(bcName)
 	if err != nil {
+		proxy.log.Error("XchainProxyServer::RegisterClientServer::Init error", "err", err)
 		return false
 	}
-	err = client.Init()
-	if err != nil {
-		proxy.log.Error("XchainProxyServer::CheckParachainAuth::Init error", "err", err)
-		return false
-	}
-	proxy.groups[bcName] = client
-	groups := client.Cache.Get()
+	groups := client.Get()
 	proxy.log.Info("XchainProxyServer::CheckParachainAuth::init client", "groups", groups, "bcname", bcName)
 	for _, v := range groups {
 		if v == from {
@@ -74,6 +69,20 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 		}
 	}
 	return false
+}
+
+func (proxy *xchainProxyServer) RegisterClientServer(bcName string) (*clixchain.GroupClient, error) {
+	// 初始化client并注册到groups中
+	client, err := clixchain.NewClientServer(bcName)
+	if err != nil {
+		return nil, err
+	}
+	err = client.Init()
+	if err != nil {
+		return nil, err
+	}
+	proxy.groups[bcName] = client
+	return client, nil
 }
 
 func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP2PMessageServer) error {
