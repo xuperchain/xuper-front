@@ -34,7 +34,7 @@ func (revokeDao *RevokeDao) GetBySerialNum(serialNum string) (*Revoke, error) {
 		"SELECT * FROM revoke_node WHERE serial_num=?", serialNum)
 	if err != nil {
 		if err != sql.ErrNoRows {
-			revokeDao.Log.Warn("RevokeDao::GetBySerialNum", "err", err)
+			revokeDao.Log.Warn("RevokeDao.GetBySerialNum", "err", err)
 		}
 		return nil, err
 	}
@@ -51,12 +51,12 @@ func (revokeDao *RevokeDao) Insert(revoke *Revoke) (int64, error) {
 		revoke.SerialNum,
 		revoke.CreateTime)
 	if err != nil {
-		revokeDao.Log.Warn("RevokeDao::Insert", "err", err)
+		revokeDao.Log.Warn("RevokeDao.Insert", "err", err)
 		return 0, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		revokeDao.Log.Warn("RevokeDao::Insert", "err", err)
+		revokeDao.Log.Warn("RevokeDao.Insert", "err", err)
 		return 0, err
 	}
 	return id, nil

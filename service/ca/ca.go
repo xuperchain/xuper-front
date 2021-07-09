@@ -37,13 +37,13 @@ func sign(data []byte) (*pb.Sign, error) {
 	cryptoClient := crypto.GetCryptoClient()
 	privateKey, err := cryptoClient.GetEcdsaPrivateKeyFromFile(config.GetKeys() + "private.key")
 	if err != nil {
-		log.Warn("CaServer::sign::can not get `private.key`", "err", err)
+		log.Warn("CaServer.sign: can not get `private.key`", "err", err)
 		return nil, err
 	}
 
 	pubKey, err := cryptoClient.GetEcdsaPublicKeyJsonFormatStr(privateKey)
 	if err != nil {
-		log.Warn("CaServer::sign::can not get `public.key`", "err", err)
+		log.Warn("CaServer.sign: can not get `public.key`", "err", err)
 		return nil, err
 	}
 
@@ -53,7 +53,7 @@ func sign(data []byte) (*pb.Sign, error) {
 	nonce := strconv.Itoa(int(time.Now().Unix()))
 	sign, err := cryptoClient.SignECDSA(privateKey, []byte(string(data)+nonce))
 	if err != nil {
-		log.Warn("CaServer::sign::sign failed", "err", err)
+		log.Warn("CaServer.sign: sign failed", "err", err)
 		return nil, err
 	}
 	return &pb.Sign{
@@ -74,7 +74,7 @@ func AddNode(address, net, adminAddress string) error {
 
 	conn, err := grpc.Dial(config.GetCaConfig().Host, grpc.WithInsecure())
 	if err != nil {
-		log.Warn("CaServer::AddNode::create conn to ca failed")
+		log.Warn("CaServer.AddNode: create conn to ca failed")
 		return err
 	}
 	client := pb.NewCaserverClient(conn)
@@ -82,14 +82,14 @@ func AddNode(address, net, adminAddress string) error {
 
 	sign, err := sign([]byte(string(request.Address + request.Net)))
 	if err != nil {
-		log.Warn("CaServer::AddNode::sign error", "err", err)
+		log.Warn("CaServer.AddNode: sign error", "err", err)
 		return err
 	}
 	request.Sign = sign
 
 	_, err = client.NodeEnroll(ctx, request)
 	if err != nil {
-		log.Warn("CaServer::AddNode::add node to ca failed", "err", err)
+		log.Warn("CaServer.AddNode: add node to ca failed", "err", err)
 		return err
 	}
 	return nil
@@ -97,12 +97,12 @@ func AddNode(address, net, adminAddress string) error {
 
 // 请求ca 获取节点的证书, 并写入文件
 func GetAndWriteCert(net string) error {
-	log.Info("CaServer::GetAndWriteCert::get node's cert")
+	log.Info("CaServer.GetAndWriteCert: get node's cert")
 	path := config.GetTlsPath()
 
 	// 判断文件是否存在, 取一个文件
 	if ok := util_file.Exist(path + util_cert.CACERT); ok {
-		log.Warn("CaServer::GetAndWriteCert::cert is existed")
+		log.Warn("CaServer.GetAndWriteCert: cert is existed")
 		return nil
 	}
 
@@ -119,7 +119,7 @@ func GetAndWriteCert(net string) error {
 	if nodeHdPriKey != "" {
 		err = util_file.WriteFileUsingFilename(path+util_cert.NODEHDPRIKEY, []byte(nodeHdPriKey))
 	}
-	log.Error("CaServer::GetAndWriteCert::get create ca conn failed", "err", nodeHdPriKey)
+	log.Error("CaServer.GetAndWriteCert: get create ca conn failed", "err", nodeHdPriKey)
 	// 写文件
 	err = util_file.WriteFileUsingFilename(path+util_cert.CACERT, []byte(cert.CaCert))
 	err = util_file.WriteFileUsingFilename(path+util_cert.CERT, []byte(cert.Cert))
@@ -133,7 +133,7 @@ func GetCurrentCert(net string) (*CurrentCert, string, error) {
 	conn, err := grpc.Dial(config.GetCaConfig().Host, grpc.WithInsecure(),
 		grpc.WithTimeout(time.Second*time.Duration(3)))
 	if err != nil {
-		log.Error("CaServer::GetCurrentCert::create ca conn failed", "err", err)
+		log.Error("CaServer.GetCurrentCert: create ca conn failed", "err", err)
 		return nil, "", err
 	}
 	defer conn.Close()
@@ -143,12 +143,12 @@ func GetCurrentCert(net string) (*CurrentCert, string, error) {
 	publicKey, err := cryptoClient.GetEcdsaPublicKeyFromFile(config.GetKeys() + "public.key")
 	address, err := cryptoClient.GetAddressFromPublicKey(publicKey)
 	if err != nil {
-		log.Warn("CaServer::GetCurrentCert::get address failed", "err", err)
+		log.Warn("CaServer.GetCurrentCert: get address failed", "err", err)
 	}
 
 	sign, err := sign([]byte(address + net))
 	if err != nil {
-		log.Error("CaServer::GetCurrentCert::sign error", "err", err)
+		log.Error("CaServer.GetCurrentCert: sign error", "err", err)
 		return nil, "", err
 	}
 
@@ -159,7 +159,7 @@ func GetCurrentCert(net string) (*CurrentCert, string, error) {
 		Address: address,
 	})
 	if err != nil {
-		log.Error("CaServer::GetCurrentCert::get current cert request failed")
+		log.Error("CaServer.GetCurrentCert: get current cert request failed")
 		return nil, "", err
 	}
 	return &CurrentCert{
@@ -177,7 +177,7 @@ func GetRevokeList(net string) error {
 	}
 	serialNum, err := revokeDao.GetLatestSerialNum(net)
 	if err != nil {
-		log.Warn("CaServer::GetRevokeList::cat get latest serial num")
+		log.Warn("CaServer.GetRevokeList: cat get latest serial num")
 	}
 
 	request := &pb.RevokeListRequest{
@@ -187,14 +187,14 @@ func GetRevokeList(net string) error {
 
 	conn, err := grpc.Dial(config.GetCaConfig().Host, grpc.WithInsecure())
 	if err != nil {
-		log.Error("CaServer::GetRevokeList::create ca conn failed", "err", err)
+		log.Error("CaServer.GetRevokeList: create ca conn failed", "err", err)
 		return err
 	}
 	defer conn.Close()
 
 	sign, err := sign([]byte(serialNum + net))
 	if err != nil {
-		log.Error("CaServer::GetRevokeList::sign error", "err", err)
+		log.Error("CaServer.GetRevokeList: sign error", "err", err)
 		return err
 	}
 
@@ -204,7 +204,7 @@ func GetRevokeList(net string) error {
 
 	ret, err := client.GetRevokeList(ctx, request)
 	if err != nil {
-		log.Error("CaServer::GetRevokeList::get revoke list request failed")
+		log.Error("CaServer.GetRevokeList: get revoke list request failed")
 		return err
 	}
 
@@ -218,7 +218,7 @@ func GetRevokeList(net string) error {
 		})
 		if err != nil {
 			// @todo batch insert?
-			log.Warn("CaServer::GetRevokeList::insert into revoke failed", "err", err, "id", row.Id)
+			log.Warn("CaServer.GetRevokeList: insert into revoke failed", "err", err, "id", row.Id)
 		}
 	}
 	return nil
@@ -231,7 +231,7 @@ func GetRevokeListRegularly(net string) error {
 			// 拉取证书撤销列表
 			err := GetRevokeList(net)
 			if err != nil {
-				log.Error("CaServer::GetRevokeListRegularly::get revoke list", "err", err)
+				log.Error("CaServer.GetRevokeListRegularly: get revoke list", "err", err)
 			}
 			now := time.Now()
 			// 每十分钟执行一次

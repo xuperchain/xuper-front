@@ -98,10 +98,10 @@ func InstallFrontConfig(configFile string) error {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		return fmt.Errorf("Config::InstallFrontConfig::Read config file error, %v", err.Error())
+		return fmt.Errorf("Config.InstallFrontConfig: Read config file error, %v", err.Error())
 	}
 	if err := viper.Unmarshal(config); err != nil {
-		return fmt.Errorf("Config::InstallFrontConfig::Unmarshal config from file error, %v", err.Error())
+		return fmt.Errorf("Config.InstallFrontConfig: Unmarshal config from file error, %v", err.Error())
 	}
 
 	// 监听配置变化, 重启加载

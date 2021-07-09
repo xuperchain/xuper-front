@@ -35,18 +35,18 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 		if config.GetCaConfig().CaSwitch {
 			creds, err := util_cert.GenCreds()
 			if err != nil {
-				log.Error("XchainP2pProxy::GetXchainP2pProxy::InitCA GenCreds failed", "err", err)
+				log.Error("XchainP2pProxy.GetXchainP2pProxy: InitCA GenCreds failed", "err", err)
 				return nil
 			}
 			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithTransportCredentials(creds))
 			if err != nil {
-				log.Error("XchainP2pProxy::GetXchainP2pProxy::InitCA Dial failed", "err", err)
+				log.Error("XchainP2pProxy.GetXchainP2pProxy: InitCA Dial failed", "err", err)
 				return nil
 			}
 		} else {
 			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithInsecure())
 			if err != nil {
-				log.Error("XchainP2pProxy::GetXchainP2pProxy::Init Dial failed", "err", err)
+				log.Error("XchainP2pProxy.GetXchainP2pProxy: Init Dial failed", "err", err)
 				return nil
 			}
 		}
@@ -66,18 +66,18 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 		if config.GetCaConfig().CaSwitch {
 			creds, err := util_cert.GenCreds()
 			if err != nil {
-				xchainProxy.log.Error("XchainP2pProxy::GetXchainP2pProxy::CA failed", "err", err)
+				xchainProxy.log.Error("XchainP2pProxy.GetXchainP2pProxy: CA failed", "err", err)
 				return nil
 			}
 			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithTransportCredentials(creds))
 			if err != nil {
-				xchainProxy.log.Error("XchainP2pProxy::GetXchainP2pProxy::CA Dail failed", "err", err)
+				xchainProxy.log.Error("XchainP2pProxy.GetXchainP2pProxy: CA Dail failed", "err", err)
 				return nil
 			}
 		} else {
 			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithInsecure())
 			if err != nil {
-				xchainProxy.log.Error("XchainP2pProxy::GetXchainP2pProxy::Dial failed", "err", err)
+				xchainProxy.log.Error("XchainP2pProxy.GetXchainP2pProxy: Dial failed", "err", err)
 				return nil
 			}
 		}
@@ -101,20 +101,20 @@ func (cli *XchainP2pProxy) newClient() (p2p.P2PServiceClient, error) {
 func (cli *XchainP2pProxy) SendMessage(ctx context.Context, msg *p2p.XuperMessage) error {
 	client, err := cli.newClient()
 	if err != nil {
-		cli.log.Error("XchainP2pProxy::SendMessage::newClient error", "err", err)
+		cli.log.Error("XchainP2pProxy.SendMessage: newClient error", "err", err)
 		return err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream, err := client.SendP2PMessage(ctx)
 	if err != nil {
-		cli.log.Error("XchainP2pProxy::SendMessage::SendP2PMessage error", "err", err)
+		cli.log.Error("XchainP2pProxy.SendMessage: SendP2PMessage error", "err", err)
 		return err
 	}
 	defer stream.CloseSend()
 	err = stream.Send(msg)
 	if err != nil {
-		cli.log.Error("XchainP2pProxy::SendMessage::Send error", "err", err)
+		cli.log.Error("XchainP2pProxy.SendMessage: Send error", "err", err)
 		return err
 	}
 	if err == io.EOF {

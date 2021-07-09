@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/xuperchain/xuper-front/config"
@@ -17,9 +18,11 @@ import (
 	serv_ca "github.com/xuperchain/xuper-front/service/ca"
 	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/prxyxchain"
 	util_cert "github.com/xuperchain/xuper-front/util/cert"
+	pb "github.com/xuperchain/xuperchain/service/pb"
 	p2p "github.com/xuperchain/xupercore/protos"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/reflection"
 )
@@ -41,12 +44,18 @@ var (
 )
 
 type xchainProxyServer struct {
+	pb.XchainClient
+	pb.EventServiceClient
+
 	groups map[string]*clixchain.GroupClient
+	mutex  sync.Mutex
 
 	log logs.Logger
 }
 
 func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
+	proxy.mutex.Lock()
+	defer proxy.mutex.Unlock()
 	if value, ok := proxy.groups[bcName]; ok {
 		groups := value.Get()
 		for _, v := range groups {
@@ -56,13 +65,13 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 		}
 		return false
 	}
-	client, err := proxy.RegisterClientServer(bcName)
+	client, err := proxy.NewParaGroupClient(bcName)
 	if err != nil {
-		proxy.log.Error("XchainProxyServer::RegisterClientServer::Init error", "err", err)
+		proxy.log.Error("XchainProxyServer.RegisterClientServer: Init error", "err", err)
 		return false
 	}
 	groups := client.Get()
-	proxy.log.Info("XchainProxyServer::CheckParachainAuth::init client", "groups", groups, "bcname", bcName)
+	proxy.log.Info("XchainProxyServer.CheckParachainAuth: init client", "groups", groups, "bcname", bcName)
 	for _, v := range groups {
 		if v == from {
 			return true
@@ -71,9 +80,9 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 	return false
 }
 
-func (proxy *xchainProxyServer) RegisterClientServer(bcName string) (*clixchain.GroupClient, error) {
-	// 初始化client并注册到groups中
-	client, err := clixchain.NewClientServer(bcName)
+func (proxy *xchainProxyServer) NewParaGroupClient(bcName string) (*clixchain.GroupClient, error) {
+	// 初始化client并注册到groups中, groupclient注册了一条平行链事件订阅流到map中
+	client, err := clixchain.NewGroupClient(bcName, proxy.XchainClient, proxy.EventServiceClient)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +114,7 @@ func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP
 		if !ok {
 			return ErrRpcAddInvalid
 		}
+		// 若为平行链请求，需要进行群组权限检验
 		if in.GetHeader().GetBcname() != config.GetXchainServer().Master &&
 			!proxy.CheckParachainAuth(in.GetHeader().GetBcname(), add) {
 			return ErrUnAuthorized
@@ -158,7 +168,7 @@ func StartXchainProxyServer(quit chan int) {
 		// 接收xchian过来的tls请求
 		creds, err := util_cert.GenCreds()
 		if err != nil {
-			proxy.log.Error("XchainProxyServer::StartXchainProxyServer::failed to serve", "err", err)
+			proxy.log.Error("XchainProxyServer.StartXchainProxyServer: failed to serve", "err", err)
 		}
 		s = grpc.NewServer(grpc.StreamInterceptor(CheckInterceptor()), grpc.Creds(creds), grpc.MaxRecvMsgSize(MaxRecvMsgSize),
 			grpc.MaxConcurrentStreams(MaxConcurrentStreams), grpc.ConnectionTimeout(time.Second*time.Duration(GRPCTIMEOUT)))
@@ -171,10 +181,25 @@ func StartXchainProxyServer(quit chan int) {
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 
-	proxy.log.Info("XchainProxyServer::StartXchainProxyServer::server start", "Port", config.GetXchainServer().Port)
+	// 注册XchainClint和XchainEventClient
+	conn, err := grpc.Dial(config.GetXchainServer().Rpc, grpc.WithInsecure(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxRecvMsgSize)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
+			Timeout:             5 * time.Second,  // wait 5 second for ping ack before considering the connection dead
+			PermitWithoutStream: true,             // send pings even without active streams
+		}))
+	if err != nil {
+		proxy.log.Error("XchainProxyServer.Dial: create conn to xchain failed")
+		return
+	}
+	proxy.XchainClient = pb.NewXchainClient(conn)
+	proxy.EventServiceClient = pb.NewEventServiceClient(conn)
+
+	proxy.log.Info("XchainProxyServer.StartXchainProxyServer: server start", "Port", config.GetXchainServer().Port)
 
 	if err := s.Serve(lis); err != nil {
-		proxy.log.Error("XchainProxyServer::StartXchainProxyServer::serve failed", "err", err)
+		proxy.log.Error("XchainProxyServer.StartXchainProxyServer: serve failed", "err", err)
 		quit <- 1
 	}
 }

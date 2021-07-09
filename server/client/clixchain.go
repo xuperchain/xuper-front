@@ -18,9 +18,7 @@ import (
 	pb "github.com/xuperchain/xuperchain/service/pb"
 	"github.com/xuperchain/xupercore/lib/utils"
 
-	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
-	"google.golang.org/grpc/keepalive"
 )
 
 // MaxRecvMsgSize max message size
@@ -54,26 +52,15 @@ type GroupClient struct {
 	Cache *groupCache
 }
 
-// StartClientServer start server for lcv
-func NewClientServer(bcName string) (*GroupClient, error) {
+// NewGroupClient GroupClint bind with a xchainClient & eventServiceClient
+func NewGroupClient(bcName string, xchainClient pb.XchainClient, eventClient pb.EventServiceClient) (*GroupClient, error) {
 	log, err := logs.NewLogger("xchainProxyServer")
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.Dial(config.GetXchainServer().Rpc, grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxRecvMsgSize)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
-			Timeout:             5 * time.Second,  // wait 5 second for ping ack before considering the connection dead
-			PermitWithoutStream: true,             // send pings even without active streams
-		}))
-	if err != nil {
-		log.Error("GroupClient::NewClientServer::create conn to xchain failed", "bcName", bcName)
-		return nil, err
-	}
 	cli := GroupClient{
-		XchainClient:       pb.NewXchainClient(conn),
-		EventServiceClient: pb.NewEventServiceClient(conn),
+		XchainClient:       xchainClient,
+		EventServiceClient: eventClient,
 		bcName:             bcName,
 		log:                log,
 		eventListener: &eventListener{
@@ -83,20 +70,21 @@ func NewClientServer(bcName string) (*GroupClient, error) {
 	return &cli, nil
 }
 
+// Init get groups from xchain-server and listen para-chain event
 func (cli *GroupClient) Init() error {
 	// 初始化时, 访问xchain获取平行链权限列表
-	resp, err := KernelPreExec(cli.XchainClient, ParaModule, ParaChainKernelContract, ParaMethod, map[string][]byte{
+	resp, err := kernelPreExec(cli.XchainClient, ParaModule, ParaChainKernelContract, ParaMethod, map[string][]byte{
 		"name": []byte(cli.bcName),
 	})
 	if err != nil {
 		return err
 	}
 	// 初始化cache
-	group := Group{}
+	group := group{}
 	err = func() error {
 		// 访问xchain错误时，仍监听group字段
 		if resp.Status != StatusSuccess {
-			cli.log.Warn("GroupClient::Init:get group from xchain", "err", resp.Message)
+			cli.log.Warn("GroupClient.Init: get group from xchain", "err", resp.Message)
 			return nil
 		}
 		return json.Unmarshal(resp.Body, &group)
@@ -104,7 +92,7 @@ func (cli *GroupClient) Init() error {
 	if err != nil {
 		return err
 	}
-	cli.log.Info("GroupClient::Init:get group from xchain", "group", group)
+	cli.log.Info("GroupClient.Init: get group from xchain", "group", group)
 	set := make(map[string]bool)
 	cache := groupCache{
 		close: make(chan int64, 1),
@@ -112,31 +100,33 @@ func (cli *GroupClient) Init() error {
 		value: group.GetAddrs(set),
 	}
 	cli.Cache = &cache
-	cache.Start()
+	cache.start()
 	return cli.listenParachainEvent(cli.Cache)
 }
 
+// Get fresh groups from cache
 func (cli *GroupClient) Get() []string {
 	// 先检查当前singleton是否为空，若是需要重新订阅event
 	cli.eventListener.mu.RLock()
 	defer cli.eventListener.mu.RUnlock()
 	if cli.eventListener.singleton == nil {
-		cli.log.Info("GroupClient::Get::re-listenParachainEvent.")
+		cli.log.Info("GroupClient.Get: re-listenParachainEvent.")
 		err := cli.listenParachainEvent(cli.Cache)
 		if err != nil {
-			cli.log.Error("GroupClient::Get::re-listenParachainEvent error.")
+			cli.log.Error("GroupClient.Get: re-listenParachainEvent error.")
 		}
 	}
-	return cli.Cache.Get()
+	return cli.Cache.get()
 }
 
+// listenParachainEvent register xchain event
 func (cli *GroupClient) listenParachainEvent(cache *groupCache) (err error) {
 	// 订阅event监听平行链权限变更
-	filter, err := NewParaFilter()
+	filter, err := newParaFilter()
 	if err != nil {
 		return err
 	}
-	stream, err := Subscribe(cli.EventServiceClient, filter)
+	stream, err := subscribe(cli.EventServiceClient, filter)
 	if err != nil {
 		return err
 	}
@@ -169,37 +159,37 @@ func (e *eventListener) reset() {
 	e.mu.Unlock()
 }
 
-// loop 单独监听订阅stream
+// listenEvent 单独监听订阅stream
 func (e *eventListener) listenEvent(cache *groupCache) {
-	e.log.Info("EventListener::listenEvent:start listen event.")
+	e.log.Info("EventListener.listenEvent: start listen event.")
 	go func() {
 		sw := e.singleton
 		for {
 			select {
 			case <-cache.close:
-				e.log.Info("EventListener::listenEvent:close.")
+				e.log.Info("EventListener.listenEvent: close.")
 				return
 			default:
 				event, err := sw.Recv()
 				if err == io.EOF {
-					e.log.Error("EventListener::listenEvent:EventService_SubscribeClient stream meets EOF.")
+					e.log.Error("EventListener.listenEvent: EventService_SubscribeClient stream meets EOF.")
 					e.reset()
 					return
 				}
 				if err != nil {
-					e.log.Error("EventListener::listenEvent::Get block event error", "err", err)
+					e.log.Error("EventListener.listenEvent: Get block event error", "err", err)
 					e.reset()
 					return
 				}
 				groups, err := e.getGroups(event)
 				// 接收到有效信息
 				if err == nil {
-					e.log.Info("EventListener::listenEvent:refresh value", "value", groups)
+					e.log.Info("EventListener.listenEvent: refresh value", "value", groups)
 					cache.ch <- groups
 					continue
 				}
 				if err != ErrResponseEmpty {
-					e.log.Error("EventListener::listenEvent::getGroups error", "err", err)
+					e.log.Error("EventListener.listenEvent: getGroups error", "err", err)
 				}
 			}
 		}
@@ -225,7 +215,7 @@ func (e *eventListener) getGroups(event *pb.Event) ([]string, error) {
 			if b.Name != ParaChainEventName {
 				continue
 			}
-			var groupItem Group
+			var groupItem group
 			err := json.Unmarshal(b.Body, &groupItem)
 			if err != nil {
 				continue
@@ -244,7 +234,7 @@ type groupCache struct {
 	sync.RWMutex
 }
 
-func (c *groupCache) Start() {
+func (c *groupCache) start() {
 	go func() {
 		for {
 			select {
@@ -259,7 +249,7 @@ func (c *groupCache) Start() {
 	}()
 }
 
-func (c *groupCache) Get() []string {
+func (c *groupCache) get() []string {
 	select {
 	case newV := <-c.ch:
 		return newV
@@ -271,22 +261,22 @@ func (c *groupCache) Get() []string {
 }
 
 //////////// Xupercore Group ////////////
-type Group struct {
-	GroupID    string   `json:"name,omitempty"`
-	Admin      []string `json:"admin,omitempty"`
-	Identities []string `json:"identities,omitempty"`
+type group struct {
+	groupID    string   `json:"name,omitempty"`
+	admin      []string `json:"admin,omitempty"`
+	identities []string `json:"identities,omitempty"`
 }
 
-func (g *Group) GetAddrs(set map[string]bool) []string {
+func (g *group) GetAddrs(set map[string]bool) []string {
 	var addrs []string
-	for _, value := range g.Admin {
+	for _, value := range g.admin {
 		if _, ok := set[value]; ok {
 			continue
 		}
 		addrs = append(addrs, value)
 		set[value] = true
 	}
-	for _, value := range g.Identities {
+	for _, value := range g.identities {
 		if _, ok := set[value]; ok {
 			continue
 		}
@@ -308,7 +298,7 @@ func readAddress() (string, error) {
 }
 
 ///////////// XChain /////////////
-func KernelPreExec(service pb.XchainClient, moduleName, contractName, methodName string, Args map[string][]byte) (*pb.ContractResponse, error) {
+func kernelPreExec(service pb.XchainClient, moduleName, contractName, methodName string, Args map[string][]byte) (*pb.ContractResponse, error) {
 	var preExeReqs []*pb.InvokeRequest
 	preExeReqs = append(preExeReqs, &pb.InvokeRequest{
 		ModuleName:   moduleName,
@@ -326,7 +316,7 @@ func KernelPreExec(service pb.XchainClient, moduleName, contractName, methodName
 
 	initiator, err := readAddress()
 	if err != nil {
-		return nil, fmt.Errorf("GroupClient::KernelPreExec::Get initiator error: %s", err.Error())
+		return nil, fmt.Errorf("GroupClient.KernelPreExec: Get initiator error: %s", err.Error())
 	}
 	preExeRPCReq.Initiator = initiator
 	preExeRPCReq.AuthRequire = []string{initiator}
@@ -344,7 +334,7 @@ func KernelPreExec(service pb.XchainClient, moduleName, contractName, methodName
 	return cr[0], nil
 }
 
-func Subscribe(service pb.EventServiceClient, filter []byte) (pb.EventService_SubscribeClient, error) {
+func subscribe(service pb.EventServiceClient, filter []byte) (pb.EventService_SubscribeClient, error) {
 	in := pb.SubscribeRequest{
 		Type:   pb.SubscribeType_BLOCK,
 		Filter: filter,
@@ -357,7 +347,7 @@ func Subscribe(service pb.EventServiceClient, filter []byte) (pb.EventService_Su
 }
 
 // create a block filter
-func NewParaFilter() ([]byte, error) {
+func newParaFilter() ([]byte, error) {
 	blockFilter := pb.BlockFilter{
 		Bcname:    config.GetXchainServer().Master, // 均为基于主链进行的监听
 		EventName: ParaChainEventName,

@@ -5,10 +5,10 @@ import (
 )
 
 func TestGroup(t *testing.T) {
-	groupA := Group{
-		GroupID:    "xuper",
-		Admin:      []string{"A", "B"},
-		Identities: []string{"A", "B", "C"},
+	groupA := group{
+		groupID:    "xuper",
+		admin:      []string{"A", "B"},
+		identities: []string{"A", "B", "C"},
 	}
 	set := make(map[string]bool)
 	result := groupA.GetAddrs(set)
@@ -17,10 +17,10 @@ func TestGroup(t *testing.T) {
 			t.Errorf("group GetAddrs error")
 		}
 	}
-	groupB := Group{
-		GroupID:    "xuper",
-		Admin:      []string{"A", "B"},
-		Identities: []string{"D"},
+	groupB := group{
+		groupID:    "xuper",
+		admin:      []string{"A", "B"},
+		identities: []string{"D"},
 	}
 	result = groupB.GetAddrs(set)
 	if len(result) != 1 {
@@ -34,9 +34,9 @@ func TestGroupCache(t *testing.T) {
 		ch:    make(chan []string, 1),
 		value: []string{"A", "B", "C"},
 	}
-	gc.Start()
+	gc.start()
 	gc.ch <- []string{"D"}
-	resultB := gc.Get()
+	resultB := gc.get()
 	if len(resultB) != 1 {
 		t.Errorf("groupCache Get error, result = %v", resultB)
 	}
