@@ -64,7 +64,8 @@ func NewGroupClient(bcName string, xchainClient pb.XchainClient, eventClient pb.
 		bcName:             bcName,
 		log:                log,
 		eventListener: &eventListener{
-			log: log,
+			close: make(chan struct{}),
+			log:   log,
 		},
 	}
 	return &cli, nil
@@ -95,21 +96,16 @@ func (cli *GroupClient) Init() error {
 	cli.log.Info("GroupClient.Init: get group from xchain", "group", group)
 	set := make(map[string]bool)
 	cache := groupCache{
-		close: make(chan int64, 1),
-		ch:    make(chan []string, 1),
 		value: group.GetAddrs(set),
 	}
 	cli.Cache = &cache
-	cache.start()
 	return cli.listenParachainEvent(cli.Cache)
 }
 
 // Get fresh groups from cache
 func (cli *GroupClient) Get() []string {
-	// 先检查当前singleton是否为空，若是需要重新订阅event
-	cli.eventListener.mu.RLock()
-	defer cli.eventListener.mu.RUnlock()
-	if cli.eventListener.singleton == nil {
+	// 先检查当前stream是否为空，若是需要重新订阅event
+	if cli.eventListener.stream == nil {
 		cli.log.Info("GroupClient.Get: re-listenParachainEvent.")
 		err := cli.listenParachainEvent(cli.Cache)
 		if err != nil {
@@ -131,42 +127,37 @@ func (cli *GroupClient) listenParachainEvent(cache *groupCache) (err error) {
 		return err
 	}
 
-	// 单例去抢注一个stream，并loop检查它
-	cli.eventListener.mu.Lock()
-	defer cli.eventListener.mu.Unlock()
-	if cli.eventListener.singleton == nil {
-		cli.eventListener.singleton = stream
+	// 抢注一个stream，并loop检查它
+	if cli.eventListener.stream == nil {
+		cli.eventListener.stream = stream
 		cli.eventListener.listenEvent(cache)
 	}
 	return nil
 }
 
 func (cli *GroupClient) Stop() {
-	cli.Cache.close <- 1
+	close(cli.eventListener.close)
 }
 
 //////////// EventListener ///////////
 type eventListener struct {
-	singleton pb.EventService_SubscribeClient
-	mu        sync.RWMutex
-
-	log logs.Logger
+	stream pb.EventService_SubscribeClient
+	close  chan struct{}
+	log    logs.Logger
 }
 
 func (e *eventListener) reset() {
-	e.mu.Lock()
-	e.singleton = nil
-	e.mu.Unlock()
+	e.stream = nil
 }
 
 // listenEvent 单独监听订阅stream
 func (e *eventListener) listenEvent(cache *groupCache) {
 	e.log.Info("EventListener.listenEvent: start listen event.")
 	go func() {
-		sw := e.singleton
+		sw := e.stream
 		for {
 			select {
-			case <-cache.close:
+			case <-e.close:
 				e.log.Info("EventListener.listenEvent: close.")
 				return
 			default:
@@ -185,7 +176,7 @@ func (e *eventListener) listenEvent(cache *groupCache) {
 				// 接收到有效信息
 				if err == nil {
 					e.log.Info("EventListener.listenEvent: refresh value", "value", groups)
-					cache.ch <- groups
+					cache.put(groups)
 					continue
 				}
 				if err != ErrResponseEmpty {
@@ -228,36 +219,20 @@ func (e *eventListener) getGroups(event *pb.Event) ([]string, error) {
 
 //////////// GroupCache //////////
 type groupCache struct {
-	close chan int64
-	ch    chan []string
 	value []string
 	sync.RWMutex
 }
 
-func (c *groupCache) start() {
-	go func() {
-		for {
-			select {
-			case <-c.close:
-				return
-			case newV := <-c.ch:
-				c.Lock()
-				c.value = newV
-				c.Unlock()
-			}
-		}
-	}()
+func (c *groupCache) get() []string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.value
 }
 
-func (c *groupCache) get() []string {
-	select {
-	case newV := <-c.ch:
-		return newV
-	default:
-		c.RLock()
-		defer c.RUnlock()
-		return c.value
-	}
+func (c *groupCache) put(value []string) {
+	c.Lock()
+	defer c.Unlock()
+	c.value = value
 }
 
 //////////// Xupercore Group ////////////

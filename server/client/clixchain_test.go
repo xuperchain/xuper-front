@@ -30,15 +30,11 @@ func TestGroup(t *testing.T) {
 
 func TestGroupCache(t *testing.T) {
 	gc := groupCache{
-		close: make(chan int64, 1),
-		ch:    make(chan []string, 1),
 		value: []string{"A", "B", "C"},
 	}
-	gc.start()
-	gc.ch <- []string{"D"}
+	gc.put([]string{"D"})
 	resultB := gc.get()
 	if len(resultB) != 1 {
 		t.Errorf("groupCache Get error, result = %v", resultB)
 	}
-	gc.close <- 1
 }
