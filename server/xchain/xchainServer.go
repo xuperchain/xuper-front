@@ -86,6 +86,8 @@ func (proxy *xchainProxyServer) RegisterClientServer(bcName string) (*clixchain.
 }
 
 func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP2PMessageServer) error {
+	ctx := p2pMsgServer.Context()
+	defer ctx.Done()
 	in, err := p2pMsgServer.Recv()
 	if err == io.EOF {
 		proxy.log.Info(in.GetHeader().Logid, err)
@@ -98,7 +100,7 @@ func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP
 		return err
 	}
 	if config.GetXchainServer().Master != "" {
-		address := p2pMsgServer.Context().Value("address")
+		address := ctx.Value("address")
 		add, ok := address.(string)
 		if !ok {
 			return ErrRpcAddInvalid
@@ -192,10 +194,7 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		if config.GetXchainServer().Master == "" {
 			return handler(srv, ss)
 		}
-		if len(hh.Subject.OrganizationalUnit) == 0 {
-			return errors.New("cert is not valid, xchain address is empty.")
-		}
-		address := hh.Subject.OrganizationalUnit[0]
+		address := hh.Subject.SerialNumber
 		ctx := context.WithValue(ss.Context(), "address", address)
 		return handler(srv, newWrappedStream(ss, &ctx))
 	}
