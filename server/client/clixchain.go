@@ -92,7 +92,7 @@ func (cli *GroupClient) Init() error {
 	if err != nil {
 		return err
 	}
-	cli.log.Info("GroupClient.Init: get group from xchain", "group", group, "resp.Body", resp.Body)
+	cli.log.Info("GroupClient.Init: get group from xchain", "group", group)
 	cache := groupCache{
 		value: group.GetAddrs(make(map[string]bool)),
 	}
