@@ -6,9 +6,9 @@ import (
 
 func TestGroup(t *testing.T) {
 	groupA := group{
-		groupID:    "xuper",
-		admin:      []string{"A", "B"},
-		identities: []string{"A", "B", "C"},
+		GroupID:    "xuper",
+		Admin:      []string{"A", "B"},
+		Identities: []string{"A", "B", "C"},
 	}
 	set := make(map[string]bool)
 	result := groupA.GetAddrs(set)
@@ -18,9 +18,9 @@ func TestGroup(t *testing.T) {
 		}
 	}
 	groupB := group{
-		groupID:    "xuper",
-		admin:      []string{"A", "B"},
-		identities: []string{"D"},
+		GroupID:    "xuper",
+		Admin:      []string{"A", "B"},
+		Identities: []string{"D"},
 	}
 	result = groupB.GetAddrs(set)
 	if len(result) != 1 {

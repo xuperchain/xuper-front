@@ -81,22 +81,20 @@ func (cli *GroupClient) Init() error {
 		return err
 	}
 	// 初始化cache
-	group := group{}
-	err = func() error {
-		// 访问xchain错误时，仍监听group字段
-		if resp.Status != StatusSuccess {
-			cli.log.Warn("GroupClient.Init: get group from xchain", "err", resp.Message)
-			return nil
-		}
-		return json.Unmarshal(resp.Body, &group)
-	}()
+	var group group
+	// 访问xchain错误时，仍监听group字段
+	if resp.Status != StatusSuccess {
+		cli.log.Warn("GroupClient.Init: get group from xchain", "err", resp.Message)
+		cli.Cache = &groupCache{}
+		return cli.listenParachainEvent(cli.Cache)
+	}
+	err = json.Unmarshal(resp.Body, &group)
 	if err != nil {
 		return err
 	}
 	cli.log.Info("GroupClient.Init: get group from xchain", "group", group)
-	set := make(map[string]bool)
 	cache := groupCache{
-		value: group.GetAddrs(set),
+		value: group.GetAddrs(make(map[string]bool)),
 	}
 	cli.Cache = &cache
 	return cli.listenParachainEvent(cli.Cache)
@@ -109,7 +107,7 @@ func (cli *GroupClient) Get() []string {
 		cli.log.Info("GroupClient.Get: re-listenParachainEvent.")
 		err := cli.listenParachainEvent(cli.Cache)
 		if err != nil {
-			cli.log.Error("GroupClient.Get: re-listenParachainEvent error.")
+			panic(fmt.Errorf("GroupClient.Get: re-listenParachainEvent error, pls re-start."))
 		}
 	}
 	return cli.Cache.get()
@@ -237,21 +235,21 @@ func (c *groupCache) put(value []string) {
 
 //////////// Xupercore Group ////////////
 type group struct {
-	groupID    string   `json:"name,omitempty"`
-	admin      []string `json:"admin,omitempty"`
-	identities []string `json:"identities,omitempty"`
+	GroupID    string   `json:"name,omitempty"`
+	Admin      []string `json:"admin,omitempty"`
+	Identities []string `json:"identities,omitempty"`
 }
 
 func (g *group) GetAddrs(set map[string]bool) []string {
 	var addrs []string
-	for _, value := range g.admin {
+	for _, value := range g.Admin {
 		if _, ok := set[value]; ok {
 			continue
 		}
 		addrs = append(addrs, value)
 		set[value] = true
 	}
-	for _, value := range g.identities {
+	for _, value := range g.Identities {
 		if _, ok := set[value]; ok {
 			continue
 		}
