@@ -64,8 +64,9 @@ func NewGroupClient(bcName string, xchainClient pb.XchainClient, eventClient pb.
 		bcName:             bcName,
 		log:                log,
 		eventListener: &eventListener{
-			close: make(chan struct{}),
-			log:   log,
+			bcName: bcName,
+			close:  make(chan struct{}),
+			log:    log,
 		},
 	}
 	return &cli, nil
@@ -139,6 +140,7 @@ func (cli *GroupClient) Stop() {
 
 //////////// EventListener ///////////
 type eventListener struct {
+	bcName string
 	stream pb.EventService_SubscribeClient
 	close  chan struct{}
 	log    logs.Logger
@@ -207,6 +209,9 @@ func (e *eventListener) getGroups(event *pb.Event) ([]string, error) {
 			var groupItem group
 			err := json.Unmarshal(b.Body, &groupItem)
 			if err != nil {
+				continue
+			}
+			if groupItem.GroupID != e.bcName {
 				continue
 			}
 			groupAddrs = append(groupAddrs, groupItem.GetAddrs(groupAddrsMap)...)
