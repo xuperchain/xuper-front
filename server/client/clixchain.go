@@ -23,9 +23,6 @@ import (
 
 // MaxRecvMsgSize max message size
 const (
-	eventStatusClosed = iota
-	eventStatusListening
-
 	MaxRecvMsgSize = 1024 * 1024 * 1024
 	GRPCTIMEOUT    = 20
 	StatusSuccess  = 200
@@ -35,11 +32,15 @@ const (
 	ParaChainKernelContract = "$parachain"
 	ParaMethod              = "getGroup"
 	ParaChainEventName      = "EditParaGroups"
+
+	unAuthorized = 403
 )
 
 var (
-	ErrPreExec       = errors.New("Request PreExec error")
-	ErrResponseEmpty = errors.New("Response empty")
+	ErrPreExec       = errors.New("request preExec error")
+	ErrResponseEmpty = errors.New("response empty")
+	ErrInvalidGroup  = errors.New("group is invalid")
+	ErrUnAuthorized  = errors.New("local node unAuthorized")
 )
 
 type GroupClient struct {
@@ -83,9 +84,9 @@ func (cli *GroupClient) Init() error {
 	}
 	// 初始化cache
 	var group group
-	// 访问xchain错误时，仍监听group字段
-	if resp.Status != StatusSuccess {
-		cli.log.Warn("GroupClient.Init: get group from xchain", "err", resp.Message)
+	// 当且仅当无权限访问时，监听group字段
+	if resp.Status != StatusSuccess && resp.Status == unAuthorized {
+		cli.log.Info("GroupClient.Init: get group from xchain when unauthorized", "err", resp.Message)
 		cli.Cache = &groupCache{}
 		return cli.listenParachainEvent(cli.Cache)
 	}
@@ -93,9 +94,15 @@ func (cli *GroupClient) Init() error {
 	if err != nil {
 		return err
 	}
-	cli.log.Info("GroupClient.Init: get group from xchain", "group", group, "resp.Body", resp.Body)
+	if group.GroupID != cli.bcName {
+		return ErrInvalidGroup
+	}
+	if len(group.GetAddrs()) == 0 {
+		return ErrInvalidGroup
+	}
+	cli.log.Info("GroupClient.Init: get group from xchain", "group", group, "bcname", cli.bcName)
 	cache := groupCache{
-		value: group.GetAddrs(make(map[string]bool)),
+		value: group.GetAddrs(),
 	}
 	cli.Cache = &cache
 	return cli.listenParachainEvent(cli.Cache)
@@ -105,10 +112,10 @@ func (cli *GroupClient) Init() error {
 func (cli *GroupClient) Get() []string {
 	// 先检查当前stream是否为空，若是需要重新订阅event
 	if cli.eventListener.stream == nil {
-		cli.log.Info("GroupClient.Get: re-listenParachainEvent.")
+		cli.log.Info("GroupClient.Get: re-listenParachainEvent.", "bcname", cli.bcName)
 		err := cli.listenParachainEvent(cli.Cache)
 		if err != nil {
-			panic(fmt.Errorf("GroupClient.Get: re-listenParachainEvent error, pls re-start."))
+			panic(fmt.Errorf("GroupClient.Get: re-listenParachainEvent error, pls re-start"))
 		}
 	}
 	return cli.Cache.get()
@@ -152,35 +159,35 @@ func (e *eventListener) reset() {
 
 // listenEvent 单独监听订阅stream
 func (e *eventListener) listenEvent(cache *groupCache) {
-	e.log.Info("EventListener.listenEvent: start listen event.")
+	e.log.Info("EventListener.listenEvent: start listen event.", "bcname", e.bcName)
 	go func() {
 		sw := e.stream
 		for {
 			select {
 			case <-e.close:
-				e.log.Info("EventListener.listenEvent: close.")
+				e.log.Info("EventListener.listenEvent: close.", "bcname", e.bcName)
 				return
 			default:
 				event, err := sw.Recv()
 				if err == io.EOF {
-					e.log.Error("EventListener.listenEvent: EventService_SubscribeClient stream meets EOF.")
+					e.log.Error("EventListener.listenEvent: EventService_SubscribeClient stream meets EOF.", "bcname", e.bcName)
 					e.reset()
 					return
 				}
 				if err != nil {
-					e.log.Error("EventListener.listenEvent: Get block event error", "err", err)
+					e.log.Error("EventListener.listenEvent: Get block event error", "err", err, "bcname", e.bcName)
 					e.reset()
 					return
 				}
 				groups, err := e.getGroups(event)
 				// 接收到有效信息
 				if err == nil {
-					e.log.Info("EventListener.listenEvent: refresh value", "value", groups)
+					e.log.Info("EventListener.listenEvent: refresh value", "value", groups, "bcname", e.bcName)
 					cache.put(groups)
 					continue
 				}
 				if err != ErrResponseEmpty {
-					e.log.Error("EventListener.listenEvent: getGroups error", "err", err)
+					e.log.Error("EventListener.listenEvent: getGroups error", "err", err, "bcname", e.bcName)
 				}
 			}
 		}
@@ -197,7 +204,7 @@ func (e *eventListener) getGroups(event *pb.Event) ([]string, error) {
 		return nil, ErrResponseEmpty
 	}
 	var groupAddrs []string
-	groupAddrsMap := make(map[string]bool)
+	// 和本链相关的事件订阅，统一仅取最后一次更改的值
 	for _, tx := range block.Txs {
 		if tx.Events == nil {
 			continue
@@ -214,8 +221,11 @@ func (e *eventListener) getGroups(event *pb.Event) ([]string, error) {
 			if groupItem.GroupID != e.bcName {
 				continue
 			}
-			groupAddrs = append(groupAddrs, groupItem.GetAddrs(groupAddrsMap)...)
+			groupAddrs = groupItem.GetAddrs()
 		}
+	}
+	if len(groupAddrs) == 0 {
+		return nil, ErrResponseEmpty
 	}
 	return groupAddrs, nil
 }
@@ -245,7 +255,8 @@ type group struct {
 	Identities []string `json:"identities,omitempty"`
 }
 
-func (g *group) GetAddrs(set map[string]bool) []string {
+func (g *group) GetAddrs() []string {
+	set := make(map[string]bool)
 	var addrs []string
 	for _, value := range g.Admin {
 		if _, ok := set[value]; ok {
