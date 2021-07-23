@@ -10,21 +10,11 @@ func TestGroup(t *testing.T) {
 		Admin:      []string{"A", "B"},
 		Identities: []string{"A", "B", "C"},
 	}
-	set := make(map[string]bool)
-	result := groupA.GetAddrs(set)
+	result := groupA.GetAddrs()
 	for _, a := range result {
 		if a != "A" && a != "B" && a != "C" {
 			t.Errorf("group GetAddrs error")
 		}
-	}
-	groupB := group{
-		GroupID:    "xuper",
-		Admin:      []string{"A", "B"},
-		Identities: []string{"D"},
-	}
-	result = groupB.GetAddrs(set)
-	if len(result) != 1 {
-		t.Errorf("group GetAddrs error")
 	}
 }
 

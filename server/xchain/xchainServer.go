@@ -37,7 +37,7 @@ const (
 )
 
 var (
-	ErrUnAuthorized  = errors.New("Request UnAuthorized error")
+	ErrUnAuthorized  = errors.New("request unAuthorized error")
 	ErrInvalidPKType = errors.New("unknown type of public key")
 	ErrParseEcdsa    = errors.New("parse ecdsa public key error")
 	ErrRpcAddInvalid = errors.New("address invalid")
