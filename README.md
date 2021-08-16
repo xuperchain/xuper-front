@@ -4,9 +4,9 @@
 
 ## Xuper-Front是什么？
 
-基于xuperchain底层技术，提供CA服务，通过证书控制全节点的权限。
+基于xuperchain底层技术，提供CA服务，平行链群组等联盟网络的组件。
 
-xchain和front，构成了一个区块链的全节点；全节点和全节点之间的通信是由xchain作为client和作为server的front建立grpcs的连接，这里的grpcs即是带有tls证书校验的grpc通信, grpcs中使用的证书采用x509协议体系，每个全节点有自己的证书，该证书由caserver颁发，caserver的根证书为根ca证书，产生对应网络的一级CA证书作为中间证书，然后基于该中间证书给每一个全节点颁发证书;全节点内部的front和xchain进程通信是 front作为client连接xchain。
+XuperChain和XFront，构成了一个联盟场景区块链的全节点；全节点和全节点之间的通信是由xchain作为client和作为server的front建立grpcs的连接，这里的grpcs即是带有tls证书校验的grpc通信, grpcs中使用的证书采用x509协议体系，每个全节点有自己的证书，该证书由caserver颁发，caserver的根证书为根ca证书，产生对应网络的一级CA证书作为中间证书，然后基于该中间证书给每一个全节点颁发证书;全节点内部的front和xchain进程通信是 front作为client连接xchain。
 
 核心功能
 
