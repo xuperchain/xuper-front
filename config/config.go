@@ -41,6 +41,7 @@ type XchainServer struct {
 	TlsPath   string `yaml:"tlsPath,omitempty"`
 	TlsVerify bool   `yaml:"tlsVerify,omitempty"`
 	Master    string `yaml:"master,omitempty"`
+	Http      string `yaml:"http, omitempty"`
 }
 
 //SetDefaults set default values

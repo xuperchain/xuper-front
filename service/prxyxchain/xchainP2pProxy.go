@@ -6,6 +6,8 @@ package prxyxchain
 import (
 	"context"
 	"io"
+	"sync"
+	"time"
 
 	"github.com/xuperchain/xuper-front/config"
 	logs "github.com/xuperchain/xuper-front/logs"
@@ -14,16 +16,21 @@ import (
 	"google.golang.org/grpc"
 )
 
-type XchainP2pProxy struct {
-	host string
-	conn *grpc.ClientConn
+var TimeoutDuration = 3 * time.Second
 
-	log logs.Logger
+type XchainP2pProxy struct {
+	conn *grpc.ClientConn
+	log  logs.Logger
 }
 
-var xchainProxy *XchainP2pProxy
+var (
+	xchainProxy *XchainP2pProxy
+	proxyMtx    sync.Mutex
+)
 
 func GetXchainP2pProxy() *XchainP2pProxy {
+	proxyMtx.Lock()
+	defer proxyMtx.Unlock()
 	if xchainProxy == nil {
 		//初始化
 		var conn *grpc.ClientConn
@@ -58,9 +65,10 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 		return xchainProxy
 	}
 
+	// xchainProxy.conn需要一直维持一个链接
 	connState := xchainProxy.conn.GetState().String()
 	if connState == "TRANSIENT_FAILURE" || connState == "SHUTDOWN" || connState == "Invalid-State" {
-		//初始化
+		//重置
 		var conn *grpc.ClientConn
 		var err error
 		if config.GetCaConfig().CaSwitch {
@@ -81,7 +89,9 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 				return nil
 			}
 		}
+		xchainProxy.Defer()
 		xchainProxy.conn = conn
+		xchainProxy.log.Info("XchainP2pProxy: connection re-build.")
 	}
 
 	return xchainProxy
@@ -89,7 +99,8 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 
 // @todo 复用一个conn 会出问题, 后面再排查下原因吧
 func (cli *XchainP2pProxy) Defer() {
-	//cli.conn.Close()
+	cli.log.Info("XchainP2pProxy: close connection.")
+	cli.conn.Close()
 }
 
 func (cli *XchainP2pProxy) newClient() (p2p.P2PServiceClient, error) {
@@ -104,7 +115,7 @@ func (cli *XchainP2pProxy) SendMessage(ctx context.Context, msg *p2p.XuperMessag
 		cli.log.Error("XchainP2pProxy.SendMessage: newClient error", "err", err)
 		return err
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, TimeoutDuration)
 	defer cancel()
 	stream, err := client.SendP2PMessage(ctx)
 	if err != nil {
@@ -118,13 +129,17 @@ func (cli *XchainP2pProxy) SendMessage(ctx context.Context, msg *p2p.XuperMessag
 		return err
 	}
 	if err == io.EOF {
+		cli.log.Error("XchainP2pProxy.SendMessage: Send EOF.")
 		return nil
 	}
+	// wait for server
+	stream.Recv()
 	return err
 }
 
 // SendMessageWithResponse send message to a peer with responce
 func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
+	// front proxy作为一个客户端向它直连的xchain host请求消息，并期待xchain host的返回
 	client, err := cli.newClient()
 	if err != nil {
 		return nil, err
@@ -135,33 +150,20 @@ func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *p2p
 	if err != nil {
 		return nil, err
 	}
-
-	res := &p2p.XuperMessage{}
-	waitc := make(chan struct{})
-	go func() {
-		for {
-			res, err = stream.Recv()
-			if err == io.EOF {
-				close(waitc)
-				return
-			}
-			if err != nil {
-				close(waitc)
-				return
-			}
-			if res != nil {
-				close(waitc)
-				return
-			}
-		}
-	}()
+	defer stream.CloseSend()
 
 	err = stream.Send(msg)
 	if err != nil {
-		stream.CloseSend()
+		cli.log.Error("SendMessageWithResponse error", "log_id", msg.GetHeader().GetLogid(), "error", err)
 		return nil, err
 	}
-	stream.CloseSend()
-	<-waitc
-	return res, err
+
+	resp, err := stream.Recv()
+	if err != nil {
+		cli.log.Error("SendMessageWithResponse Recv error", "log_id", resp.GetHeader().GetLogid(), "error", err.Error(), "from", msg.GetHeader().From,
+			"type", msg.Header.Type)
+		return nil, err
+	}
+
+	return resp, err
 }
