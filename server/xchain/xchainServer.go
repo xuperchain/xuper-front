@@ -16,7 +16,7 @@ import (
 	logs "github.com/xuperchain/xuper-front/logs"
 	clixchain "github.com/xuperchain/xuper-front/server/client"
 	serv_ca "github.com/xuperchain/xuper-front/service/ca"
-	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/prxyxchain"
+	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/proxyxchain"
 	util_cert "github.com/xuperchain/xuper-front/util/cert"
 	pb "github.com/xuperchain/xuperchain/service/pb"
 	p2p "github.com/xuperchain/xupercore/protos"
