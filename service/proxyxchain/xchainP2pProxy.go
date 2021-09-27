@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-const MaxMessageSize = 1024 * 1024 * 1024
+const maxMessageSize = 1024 * 1024 * 1024
 
 type XchainP2pProxy struct {
 	host string
@@ -40,13 +40,13 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 				log.Error("XchainP2pProxy.GetXchainP2pProxy: InitCA GenCreds failed", "err", err)
 				return nil
 			}
-			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxMessageSize), grpc.MaxCallSendMsgSize(MaxMessageSize)))
+			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)))
 			if err != nil {
 				log.Error("XchainP2pProxy.GetXchainP2pProxy: InitCA Dial failed", "err", err)
 				return nil
 			}
 		} else {
-			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxMessageSize), grpc.MaxCallSendMsgSize(MaxMessageSize)))
+			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)))
 			if err != nil {
 				log.Error("XchainP2pProxy.GetXchainP2pProxy: Init Dial failed", "err", err)
 				return nil
@@ -71,13 +71,13 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 				xchainProxy.log.Error("XchainP2pProxy.GetXchainP2pProxy: CA failed", "err", err)
 				return nil
 			}
-			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxMessageSize), grpc.MaxCallSendMsgSize(MaxMessageSize)))
+			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)))
 			if err != nil {
 				xchainProxy.log.Error("XchainP2pProxy.GetXchainP2pProxy: CA Dail failed", "err", err)
 				return nil
 			}
 		} else {
-			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxMessageSize), grpc.MaxCallSendMsgSize(MaxMessageSize)))
+			conn, err = grpc.Dial(config.GetXchainServer().Host, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)))
 			if err != nil {
 				xchainProxy.log.Error("XchainP2pProxy.GetXchainP2pProxy: Dial failed", "err", err)
 				return nil
