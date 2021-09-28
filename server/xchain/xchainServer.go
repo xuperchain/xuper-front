@@ -122,7 +122,7 @@ func (proxy *xchainProxyServer) SendP2PMessage(stream p2p.P2PService_SendP2PMess
 			return ErrUnAuthorized
 		}
 	}
-	ret, err := handleReceivedMsg(in)
+	ret, err := handleReceivedMsg(ctx, in)
 	if err != nil {
 		proxy.log.Error("XchainProxyServer.SendP2PMessageServer: handleReceivedMsg error", "logid", in.GetHeader().Logid, "type", in.GetHeader().Type,
 			"from", in.GetHeader().From, "err", err)
@@ -133,7 +133,7 @@ func (proxy *xchainProxyServer) SendP2PMessage(stream p2p.P2PService_SendP2PMess
 	return err
 }
 
-func handleReceivedMsg(msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
+func handleReceivedMsg(ctx context.Context, msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
 	c := serv_proxy_xchain.GetXchainP2pProxy()
 	if c == nil {
 		return nil, errors.New("cat get client")
@@ -143,12 +143,14 @@ func handleReceivedMsg(msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
 	msgType := msg.GetHeader().GetType()
 	if _, ok := sendMsgMap[msgType]; !ok {
 		// 期望节点处理后有返回的请求
-		ret, err := c.SendMessageWithResponse(context.Background(), msg)
+		// 统一透传别的xchain作为client时的context
+		ret, err := c.SendMessageWithResponse(ctx, msg)
 		return ret, err
 	}
 
 	// 发送给节点, 不期望节点返回
-	err := c.SendMessage(context.Background(), msg)
+	// 统一透传别的xchain作为client时的context
+	err := c.SendMessage(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +230,7 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		}
 		address := hh.Subject.SerialNumber
 		ctx := context.WithValue(ss.Context(), "address", address)
-		return handler(srv, newWrappedStream(ss, &ctx))
+		return handler(srv, newWrappedStream(ss, ctx))
 	}
 }
 
@@ -236,15 +238,15 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 
 type wrappedStream struct {
 	grpc.ServerStream
-	Ctx *context.Context
+	Ctx context.Context
 }
 
 // Context 的作用为覆盖stream的Context方法
 func (w *wrappedStream) Context() context.Context {
-	return *w.Ctx
+	return w.Ctx
 }
 
-func newWrappedStream(s grpc.ServerStream, ctx *context.Context) grpc.ServerStream {
+func newWrappedStream(s grpc.ServerStream, ctx context.Context) grpc.ServerStream {
 	wrapper := wrappedStream{
 		ServerStream: s,
 		Ctx:          ctx,

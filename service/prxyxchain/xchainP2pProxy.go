@@ -115,8 +115,6 @@ func (cli *XchainP2pProxy) SendMessage(ctx context.Context, msg *p2p.XuperMessag
 		cli.log.Error("XchainP2pProxy.SendMessage: newClient error", "err", err)
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, TimeoutDuration)
-	defer cancel()
 	stream, err := client.SendP2PMessage(ctx)
 	if err != nil {
 		cli.log.Error("XchainP2pProxy.SendMessage: SendP2PMessage error", "err", err)
@@ -144,8 +142,6 @@ func (cli *XchainP2pProxy) SendMessageWithResponse(ctx context.Context, msg *p2p
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	stream, err := client.SendP2PMessage(ctx)
 	if err != nil {
 		return nil, err
