@@ -5,6 +5,8 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -111,4 +113,13 @@ func startFront(quit chan int) {
 
 	// 2.启动xchain节点代理,内部判断caSwitch
 	go server_xchain.StartXchainProxyServer(quit)
+
+	// 3.http
+	if config.GetXchainServer().Http != "" {
+		go func() {
+			if err := http.ListenAndServe(config.GetXchainServer().Http, nil); err != nil {
+				panic(fmt.Errorf("pprof server failed to listen: %v", err))
+			}
+		}()
+	}
 }
