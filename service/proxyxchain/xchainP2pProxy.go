@@ -14,7 +14,14 @@ import (
 	"google.golang.org/grpc"
 )
 
-const maxMessageSize = 1024 * 1024 * 1024
+var maxMessageSize = 0
+
+func init() {
+	maxMessageSize := config.GetXchainServer().MaxMessageSize
+	if maxMessageSize == 0 {
+		maxMessageSize = 1024 * 1024 * 1024
+	}
+}
 
 type XchainP2pProxy struct {
 	host string

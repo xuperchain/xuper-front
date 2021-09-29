@@ -23,7 +23,7 @@ import (
 
 // MaxRecvMsgSize max message size
 const (
-	MaxRecvMsgSize = 1024 * 1024 * 1024
+	//MaxRecvMsgSize = 1024 * 1024 * 1024
 	GRPCTIMEOUT    = 20
 	StatusSuccess  = 200
 	GroupSliceSize = 10
