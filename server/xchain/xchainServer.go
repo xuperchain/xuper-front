@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -156,7 +155,6 @@ func StartXchainProxyServer(quit chan int) {
 	if maxMessageSize == 0 {
 		maxMessageSize = 1024 * 1024 * 1024
 	}
-	fmt.Println("maxMessageSize:aaaa:", maxMessageSize)
 	// start server
 	lis, err := net.Listen("tcp", config.GetXchainServer().Port)
 	log, err := logs.NewLogger("xchainProxyServer")
