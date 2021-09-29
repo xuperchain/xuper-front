@@ -14,15 +14,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-var maxMessageSize = 0
-
-func init() {
-	maxMessageSize := config.GetXchainServer().MaxMessageSize
-	if maxMessageSize == 0 {
-		maxMessageSize = 1024 * 1024 * 1024
-	}
-}
-
 type XchainP2pProxy struct {
 	host string
 	conn *grpc.ClientConn
@@ -33,6 +24,12 @@ type XchainP2pProxy struct {
 var xchainProxy *XchainP2pProxy
 
 func GetXchainP2pProxy() *XchainP2pProxy {
+
+	maxMessageSize := config.GetXchainServer().MaxMessageSize
+	if maxMessageSize == 0 {
+		maxMessageSize = 1024 * 1024 * 1024
+	}
+
 	if xchainProxy == nil {
 		//初始化
 		var conn *grpc.ClientConn
