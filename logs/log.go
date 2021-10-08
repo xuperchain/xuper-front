@@ -1,6 +1,7 @@
 package logs
 
 import (
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -23,6 +24,7 @@ func InitLog(cfgFile, logDir string) {
 	lock.Lock()
 	defer lock.Unlock()
 	once.Do(func() {
+		os.MkdirAll(logDir, 0755)
 		// 创建日志实例
 		xfLog := log15.New()
 		lvLevel := LvlFromString(config.GetLog().Level)

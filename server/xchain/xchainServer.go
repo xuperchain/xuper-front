@@ -41,6 +41,16 @@ var (
 	ErrInvalidPKType = errors.New("unknown type of public key")
 	ErrParseEcdsa    = errors.New("parse ecdsa public key error")
 	ErrRpcAddInvalid = errors.New("address invalid")
+
+	// SendMsgMap
+	sendMsgMap = map[p2p.XuperMessage_MessageType]bool{
+		p2p.XuperMessage_POSTTX:                       true,
+		p2p.XuperMessage_SENDBLOCK:                    true,
+		p2p.XuperMessage_BATCHPOSTTX:                  true,
+		p2p.XuperMessage_NEW_BLOCKID:                  true,
+		p2p.XuperMessage_CHAINED_BFT_NEW_PROPOSAL_MSG: true,
+		p2p.XuperMessage_CHAINED_BFT_VOTE_MSG:         true,
+	}
 )
 
 type xchainProxyServer struct {
@@ -53,25 +63,34 @@ type xchainProxyServer struct {
 	log logs.Logger
 }
 
-func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
+func (proxy *xchainProxyServer) GetGroupClient(bcName string) (*clixchain.GroupClient, error) {
 	proxy.mutex.Lock()
 	defer proxy.mutex.Unlock()
 	if value, ok := proxy.groups[bcName]; ok {
-		groups := value.Get()
-		for _, v := range groups {
-			if v == from {
-				return true
-			}
-		}
-		return false
+		return value, nil
 	}
-	client, err := proxy.NewParaGroupClient(bcName)
+	// 初始化client并注册到groups中, groupclient注册了一条平行链事件订阅流到map中
+	client, err := clixchain.NewGroupClient(bcName, proxy.XchainClient, proxy.EventServiceClient)
+	if err != nil {
+		proxy.log.Error("XchainProxyServer.RegisterClientServer: NewGroupClient error", "err", err)
+		return nil, err
+	}
+	err = client.Init()
 	if err != nil {
 		proxy.log.Error("XchainProxyServer.RegisterClientServer: Init error", "err", err)
+		return nil, err
+	}
+	proxy.log.Info("XchainProxyServer.CheckParachainAuth: init client success", "groups", client.Get(), "bcname", bcName)
+	proxy.groups[bcName] = client
+	return client, nil
+}
+
+func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) bool {
+	client, err := proxy.GetGroupClient(bcName)
+	if err != nil {
 		return false
 	}
 	groups := client.Get()
-	proxy.log.Info("XchainProxyServer.CheckParachainAuth: init client", "groups", groups, "bcname", bcName)
 	for _, v := range groups {
 		if v == from {
 			return true
@@ -80,32 +99,15 @@ func (proxy *xchainProxyServer) CheckParachainAuth(bcName string, from string) b
 	return false
 }
 
-func (proxy *xchainProxyServer) NewParaGroupClient(bcName string) (*clixchain.GroupClient, error) {
-	// 初始化client并注册到groups中, groupclient注册了一条平行链事件订阅流到map中
-	client, err := clixchain.NewGroupClient(bcName, proxy.XchainClient, proxy.EventServiceClient)
-	if err != nil {
-		return nil, err
-	}
-	err = client.Init()
-	if err != nil {
-		return nil, err
-	}
-	proxy.groups[bcName] = client
-	return client, nil
-}
-
-func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP2PMessageServer) error {
-	ctx := p2pMsgServer.Context()
-	defer ctx.Done()
-	in, err := p2pMsgServer.Recv()
+func (proxy *xchainProxyServer) SendP2PMessage(stream p2p.P2PService_SendP2PMessageServer) error {
+	ctx := stream.Context()
+	in, err := stream.Recv()
 	if err == io.EOF {
-		proxy.log.Info(in.GetHeader().Logid, err)
+		proxy.log.Warn("XchainProxyServer.SendP2PMessage: streamServer meets EOF", "logid", in.GetHeader().Logid)
 		return nil
 	}
 	if err != nil {
-		if in.GetHeader() != nil {
-			proxy.log.Info(in.GetHeader().Logid, err)
-		}
+		proxy.log.Error("XchainProxyServer.SendP2PMessage: streamServer err", "error", err)
 		return err
 	}
 	if config.GetXchainServer().Master != "" {
@@ -120,31 +122,38 @@ func (proxy *xchainProxyServer) SendP2PMessage(p2pMsgServer p2p.P2PService_SendP
 			return ErrUnAuthorized
 		}
 	}
-	ret, err := handleReceivedMsg(in)
+	ret, err := handleReceivedMsg(ctx, in)
+	if err != nil {
+		proxy.log.Error("XchainProxyServer.SendP2PMessageServer: handleReceivedMsg error", "logid", in.GetHeader().Logid, "type", in.GetHeader().Type,
+			"from", in.GetHeader().From, "err", err)
+	}
 	if ret != nil {
-		p2pMsgServer.Send(ret)
+		stream.Send(ret)
 	}
 	return err
 }
 
-func handleReceivedMsg(msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
+func handleReceivedMsg(ctx context.Context, msg *p2p.XuperMessage) (*p2p.XuperMessage, error) {
 	c := serv_proxy_xchain.GetXchainP2pProxy()
 	if c == nil {
 		return nil, errors.New("cat get client")
 	}
-	defer c.Defer()
 
 	// check msg type
 	msgType := msg.GetHeader().GetType()
-	if msgType != p2p.XuperMessage_POSTTX && msgType != p2p.XuperMessage_SENDBLOCK && msgType !=
-		p2p.XuperMessage_BATCHPOSTTX && msgType != p2p.XuperMessage_NEW_BLOCKID {
+	if _, ok := sendMsgMap[msgType]; !ok {
 		// 期望节点处理后有返回的请求
-		ret, err := c.SendMessageWithResponse(context.Background(), msg)
+		// 统一透传别的xchain作为client时的context
+		ret, err := c.SendMessageWithResponse(ctx, msg)
 		return ret, err
 	}
 
 	// 发送给节点, 不期望节点返回
-	c.SendMessage(context.Background(), msg)
+	// 统一透传别的xchain作为client时的context
+	err := c.SendMessage(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
 	return nil, nil
 }
 
@@ -222,7 +231,7 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		}
 		address := hh.Subject.SerialNumber
 		ctx := context.WithValue(ss.Context(), "address", address)
-		return handler(srv, newWrappedStream(ss, &ctx))
+		return handler(srv, newWrappedStream(ss, ctx))
 	}
 }
 
@@ -230,15 +239,15 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 
 type wrappedStream struct {
 	grpc.ServerStream
-	Ctx *context.Context
+	Ctx context.Context
 }
 
 // Context 的作用为覆盖stream的Context方法
 func (w *wrappedStream) Context() context.Context {
-	return *w.Ctx
+	return w.Ctx
 }
 
-func newWrappedStream(s grpc.ServerStream, ctx *context.Context) grpc.ServerStream {
+func newWrappedStream(s grpc.ServerStream, ctx context.Context) grpc.ServerStream {
 	wrapper := wrappedStream{
 		ServerStream: s,
 		Ctx:          ctx,

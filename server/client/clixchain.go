@@ -41,6 +41,8 @@ var (
 	ErrResponseEmpty = errors.New("response empty")
 	ErrInvalidGroup  = errors.New("group is invalid")
 	ErrUnAuthorized  = errors.New("local node unAuthorized")
+
+	napDuration = time.Second
 )
 
 type GroupClient struct {
@@ -87,7 +89,9 @@ func (cli *GroupClient) Init() error {
 	// 当且仅当无权限访问时，监听group字段
 	if resp.Status != StatusSuccess && resp.Status == unAuthorized {
 		cli.log.Info("GroupClient.Init: get group from xchain when unauthorized", "err", resp.Message)
-		cli.Cache = &groupCache{}
+		cli.Cache = &groupCache{
+			value: make([]string, 0),
+		}
 		return cli.listenParachainEvent(cli.Cache)
 	}
 	err = json.Unmarshal(resp.Body, &group)
@@ -111,32 +115,33 @@ func (cli *GroupClient) Init() error {
 // Get fresh groups from cache
 func (cli *GroupClient) Get() []string {
 	// 先检查当前stream是否为空，若是需要重新订阅event
-	if cli.eventListener.stream == nil {
-		cli.log.Info("GroupClient.Get: re-listenParachainEvent.", "bcname", cli.bcName)
-		err := cli.listenParachainEvent(cli.Cache)
-		if err != nil {
-			panic(fmt.Errorf("GroupClient.Get: re-listenParachainEvent error, pls re-start"))
-		}
+	err := cli.listenParachainEvent(cli.Cache)
+	if err != nil {
+		cli.log.Error("GroupClient.Get: listenParachainEvent error", "bcname", cli.bcName, "error", err)
 	}
 	return cli.Cache.get()
 }
 
 // listenParachainEvent register xchain event
 func (cli *GroupClient) listenParachainEvent(cache *groupCache) (err error) {
-	// 订阅event监听平行链权限变更
-	filter, err := newParaFilter()
-	if err != nil {
-		return err
-	}
-	stream, err := subscribe(cli.EventServiceClient, filter)
-	if err != nil {
-		return err
-	}
-
-	// 抢注一个stream，并loop检查它
 	if cli.eventListener.stream == nil {
-		cli.eventListener.stream = stream
-		cli.eventListener.listenEvent(cache)
+		cli.eventListener.mutex.Lock()
+		defer cli.eventListener.mutex.Unlock()
+		if cli.eventListener.stream == nil {
+			// 订阅event监听平行链权限变更
+			filter, err := newParaFilter()
+			if err != nil {
+				return err
+			}
+			stream, err := subscribe(cli.EventServiceClient, filter)
+			if err != nil {
+				return err
+			}
+			// 抢注一个stream，并loop检查它
+			cli.eventListener.stream = stream
+			cli.eventListener.listenEvent(cache)
+			return nil
+		}
 	}
 	return nil
 }
@@ -150,10 +155,14 @@ type eventListener struct {
 	bcName string
 	stream pb.EventService_SubscribeClient
 	close  chan struct{}
+	mutex  sync.Mutex
 	log    logs.Logger
 }
 
 func (e *eventListener) reset() {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	e.stream.CloseSend()
 	e.stream = nil
 }
 
@@ -161,6 +170,8 @@ func (e *eventListener) reset() {
 func (e *eventListener) listenEvent(cache *groupCache) {
 	e.log.Info("EventListener.listenEvent: start listen event.", "bcname", e.bcName)
 	go func() {
+		e.mutex.Lock()
+		defer e.mutex.Unlock()
 		sw := e.stream
 		for {
 			select {
@@ -181,13 +192,16 @@ func (e *eventListener) listenEvent(cache *groupCache) {
 				}
 				groups, err := e.getGroups(event)
 				// 接收到有效信息
-				if err == nil {
+				if groups != nil {
 					e.log.Info("EventListener.listenEvent: refresh value", "value", groups, "bcname", e.bcName)
 					cache.put(groups)
+					time.Sleep(napDuration)
 					continue
 				}
 				if err != ErrResponseEmpty {
 					e.log.Error("EventListener.listenEvent: getGroups error", "err", err, "bcname", e.bcName)
+					e.reset()
+					return
 				}
 			}
 		}
