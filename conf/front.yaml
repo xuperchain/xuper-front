@@ -13,7 +13,7 @@ xchainServer:
 dbConfig:
   dbType: sqlite3
   #dbType: mysql
-  dbPath: ./tmp/ca.db
+  dbPath: /tmp/ca.db
   mysqlDbUser: root
   mysqlDbPwd: 123456
   mysqlDbHost: 10.99.196.224
