@@ -16,7 +16,7 @@ import (
 	logs "github.com/xuperchain/xuper-front/logs"
 	clixchain "github.com/xuperchain/xuper-front/server/client"
 	serv_ca "github.com/xuperchain/xuper-front/service/ca"
-	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/prxyxchain"
+	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/proxyxchain"
 	util_cert "github.com/xuperchain/xuper-front/util/cert"
 	pb "github.com/xuperchain/xuperchain/service/pb"
 	p2p "github.com/xuperchain/xupercore/protos"
@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	// MaxRecvMsgSize max message size
-	MaxRecvMsgSize = 1024 * 1024 * 1024
+	// maxMessageSize max message size
+	maxMessageSize = 1024 * 1024 * 1024
 	// MaxConcurrentStreams max concurrent
 	MaxConcurrentStreams = 1000
 	// GRPCTIMEOUT grpc timeout
@@ -162,6 +162,7 @@ func StartXchainProxyServer(quit chan int) {
 	// start server
 	lis, err := net.Listen("tcp", config.GetXchainServer().Port)
 	log, err := logs.NewLogger("xchainProxyServer")
+
 	if err != nil {
 		return
 	}
@@ -179,11 +180,11 @@ func StartXchainProxyServer(quit chan int) {
 		if err != nil {
 			proxy.log.Error("XchainProxyServer.StartXchainProxyServer: failed to serve", "err", err)
 		}
-		s = grpc.NewServer(grpc.StreamInterceptor(CheckInterceptor()), grpc.Creds(creds), grpc.MaxRecvMsgSize(MaxRecvMsgSize),
+		s = grpc.NewServer(grpc.StreamInterceptor(CheckInterceptor()), grpc.Creds(creds), grpc.MaxRecvMsgSize(maxMessageSize), grpc.MaxSendMsgSize(maxMessageSize),
 			grpc.MaxConcurrentStreams(MaxConcurrentStreams), grpc.ConnectionTimeout(time.Second*time.Duration(GRPCTIMEOUT)))
 		p2p.RegisterP2PServiceServer(s, &proxy)
 	} else {
-		s = grpc.NewServer(grpc.MaxRecvMsgSize(MaxRecvMsgSize),
+		s = grpc.NewServer(grpc.MaxRecvMsgSize(maxMessageSize), grpc.MaxSendMsgSize(maxMessageSize),
 			grpc.MaxConcurrentStreams(MaxConcurrentStreams), grpc.ConnectionTimeout(time.Second*time.Duration(GRPCTIMEOUT)))
 		p2p.RegisterP2PServiceServer(s, &proxy)
 	}
@@ -192,7 +193,7 @@ func StartXchainProxyServer(quit chan int) {
 
 	// 注册XchainClint和XchainEventClient
 	conn, err := grpc.Dial(config.GetXchainServer().Rpc, grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxRecvMsgSize)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize)), grpc.MaxCallSendMsgSize(maxMessageSize),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
 			Timeout:             5 * time.Second,  // wait 5 second for ping ack before considering the connection dead
