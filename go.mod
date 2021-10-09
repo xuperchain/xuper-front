@@ -19,8 +19,8 @@ require (
 	github.com/spf13/viper v1.6.2
 	github.com/xuperchain/crypto v0.0.0-20201028025054-4d560674bcd6
 	github.com/xuperchain/log15 v0.0.0-20190620081506-bc88a9198230
-	github.com/xuperchain/xuperchain v0.0.0-20210927115948-7a094acb608e
-	github.com/xuperchain/xupercore v0.0.0-20210927035201-1ce8d8deeec2
+	github.com/xuperchain/xuperchain v0.0.0-20211009072540-ed05befa61d3
+	github.com/xuperchain/xupercore v0.0.0-20211008111406-9e93e31ba563
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 	google.golang.org/grpc v1.35.0

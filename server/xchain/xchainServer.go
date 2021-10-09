@@ -193,7 +193,7 @@ func StartXchainProxyServer(quit chan int) {
 
 	// 注册XchainClint和XchainEventClient
 	conn, err := grpc.Dial(config.GetXchainServer().Rpc, grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize)), grpc.MaxCallSendMsgSize(maxMessageSize),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
 			Timeout:             5 * time.Second,  // wait 5 second for ping ack before considering the connection dead
