@@ -16,11 +16,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	// maxMessageSize max message size
-	maxMessageSize = 1024 * 1024 * 1024
-)
-
 var TimeoutDuration = 3 * time.Second
 
 type XchainP2pProxy struct {
@@ -44,6 +39,7 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 		if err != nil {
 			return nil
 		}
+		maxMessageSize := config.GetXchainServer().MaxMsgSize
 		if config.GetCaConfig().CaSwitch {
 			creds, err := util_cert.GenCreds()
 			if err != nil {
@@ -76,6 +72,7 @@ func GetXchainP2pProxy() *XchainP2pProxy {
 		//重置
 		var conn *grpc.ClientConn
 		var err error
+		maxMessageSize := config.GetXchainServer().MaxMsgSize
 		if config.GetCaConfig().CaSwitch {
 			creds, err := util_cert.GenCreds()
 			if err != nil {

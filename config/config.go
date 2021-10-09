@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const defaultMaxMsgSize = 1024 * 1024 * 1024
+
 var config *Config
 
 type Config struct {
@@ -35,17 +37,19 @@ func (c *Config) SetDefaults() {
 }
 
 type XchainServer struct {
-	Host      string `yaml:"host,omitempty"`
-	Port      string `yaml:"port,omitempty"`
-	Rpc       string `yaml:"rpc,omitempty"`
-	TlsPath   string `yaml:"tlsPath,omitempty"`
-	TlsVerify bool   `yaml:"tlsVerify,omitempty"`
-	Master    string `yaml:"master,omitempty"`
-	Http      string `yaml:"http, omitempty"`
+	Host       string `yaml:"host,omitempty"`
+	Port       string `yaml:"port,omitempty"`
+	Rpc        string `yaml:"rpc,omitempty"`
+	TlsPath    string `yaml:"tlsPath,omitempty"`
+	TlsVerify  bool   `yaml:"tlsVerify,omitempty"`
+	Master     string `yaml:"master,omitempty"`
+	Http       string `yaml:"http, omitempty"`
+	MaxMsgSize int  `yaml:"maxMsgSize,omitempty"`
 }
 
 //SetDefaults set default values
 func (c XchainServer) SetDefaults() {
+	c.MaxMsgSize = defaultMaxMsgSize
 }
 
 type DbConfig struct {

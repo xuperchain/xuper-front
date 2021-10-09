@@ -28,8 +28,6 @@ import (
 )
 
 const (
-	// maxMessageSize max message size
-	maxMessageSize = 1024 * 1024 * 1024
 	// MaxConcurrentStreams max concurrent
 	MaxConcurrentStreams = 1000
 	// GRPCTIMEOUT grpc timeout
@@ -173,6 +171,7 @@ func StartXchainProxyServer(quit chan int) {
 		proxy.groups = make(map[string]*clixchain.GroupClient)
 	}
 	var s *grpc.Server
+	maxMessageSize := config.GetXchainServer().MaxMsgSize
 	// 是否使用tls
 	if config.GetCaConfig().CaSwitch {
 		// 接收xchian过来的tls请求
@@ -193,7 +192,7 @@ func StartXchainProxyServer(quit chan int) {
 
 	// 注册XchainClint和XchainEventClient
 	conn, err := grpc.Dial(config.GetXchainServer().Rpc, grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize)), grpc.MaxCallSendMsgSize(maxMessageSize),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
 			Timeout:             5 * time.Second,  // wait 5 second for ping ack before considering the connection dead
