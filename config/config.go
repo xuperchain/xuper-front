@@ -44,11 +44,11 @@ type XchainServer struct {
 	TlsVerify  bool   `yaml:"tlsVerify,omitempty"`
 	Master     string `yaml:"master,omitempty"`
 	Http       string `yaml:"http, omitempty"`
-	MaxMsgSize int  `yaml:"maxMsgSize,omitempty"`
+	MaxMsgSize int    `yaml:"maxMsgSize,omitempty"`
 }
 
 //SetDefaults set default values
-func (c XchainServer) SetDefaults() {
+func (c *XchainServer) SetDefaults() {
 	c.MaxMsgSize = defaultMaxMsgSize
 }
 
@@ -63,7 +63,7 @@ type DbConfig struct {
 }
 
 //SetDefaults set default values
-func (c DbConfig) SetDefaults() {
+func (c *DbConfig) SetDefaults() {
 }
 
 type CaConfig struct {
@@ -72,7 +72,7 @@ type CaConfig struct {
 }
 
 //SetDefaults set default values
-func (c CaConfig) SetDefaults() {
+func (c *CaConfig) SetDefaults() {
 }
 
 type Log struct {
