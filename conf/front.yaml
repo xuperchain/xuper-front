@@ -1,13 +1,14 @@
 # xchain地址配置
 xchainServer:
+  # 对应 xchain 的节点 rpc 端口，每个 xchain 节点配置不同，在 xchain 的 server.yaml 文件中。
+  rpc: :37101
   # xchain tls的地址,如果不用的话可以不配置
-  host: 10.23.30.15:37301
+  host: 127.0.0.1:47101
   # front 作为xchain代理对其他xchain服务的端口号
-  port: :17101
+  port: :57101
   # front证书地址
   tlsPath: ./data/cert
-
-
+  master: xuper
 
 # 数据库配置 ./data/db/ca.db
 dbConfig:
@@ -27,8 +28,8 @@ caConfig:
   # 远程ca地址
   host: 127.0.0.1:8098
 
-# 当前节点的网络名称
-netName: test
+# 当前节点的网络名称 跟CA的网络名一致
+netName: testnet
 
 # 日志
 log:
@@ -37,4 +38,3 @@ log:
 
 # 节点管理员账户地址
 keys: ./data/keys
-

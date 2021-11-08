@@ -12,11 +12,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tjfoc/gmsm/gmtls/gmcredentials"
+	tjx509 "github.com/tjfoc/gmsm/x509"
 	"github.com/xuperchain/xuper-front/config"
 	logs "github.com/xuperchain/xuper-front/logs"
 	clixchain "github.com/xuperchain/xuper-front/server/client"
 	serv_ca "github.com/xuperchain/xuper-front/service/ca"
 	serv_proxy_xchain "github.com/xuperchain/xuper-front/service/proxyxchain"
+	"github.com/xuperchain/xuper-front/util/cert"
 	util_cert "github.com/xuperchain/xuper-front/util/cert"
 	pb "github.com/xuperchain/xuperchain/service/pb"
 	p2p "github.com/xuperchain/xupercore/protos"
@@ -218,18 +221,41 @@ func StartXchainProxyServer(quit chan int) {
 func CheckInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		p, _ := peer.FromContext(ss.Context())
-		hh, err := x509.ParseCertificate(p.AuthInfo.(credentials.TLSInfo).State.PeerCertificates[0].Raw)
+		log, _ := logs.NewLogger("xchainProxyServer")
+		// 根据 front 的 CA 是否是 gm配置 解析证书
+		var ok bool
+		var address string
+		// log.Error("caconfig crypto is gm", config.GetCaConfig().IsGM)
+		isgm, err := cert.IsGM()
 		if err != nil {
-			return errors.New("cert is not valid")
+			log.Error("get isgm failed", err.Error())
+			return err
 		}
-		ok := serv_ca.IsValidCert(hh.SerialNumber.String())
-		if ok == false {
+		if isgm {
+			gmhh, err := tjx509.ParseCertificate(p.AuthInfo.(gmcredentials.TLSInfo).State.PeerCertificates[0].Raw)
+			if err != nil {
+				log.Error("parseCertificate gm failed,data wasadada", p.AuthInfo.(credentials.TLSInfo).State.PeerCertificates[0].Raw)
+				log.Error("parseCertificate gm failed", err.Error())
+				return errors.New("gm cert is not valid")
+			}
+			ok = serv_ca.IsValidCert(gmhh.SerialNumber.String())
+			address = gmhh.Subject.SerialNumber
+		} else {
+			hh, err := x509.ParseCertificate(p.AuthInfo.(credentials.TLSInfo).State.PeerCertificates[0].Raw)
+			if err != nil {
+				return errors.New("cert is not valid")
+			}
+			ok = serv_ca.IsValidCert(hh.SerialNumber.String())
+			address = hh.Subject.SerialNumber
+		}
+		if !ok {
+			log.Error("cert is not not valid", ok)
 			return errors.New("cert is not valid")
 		}
 		if config.GetXchainServer().Master == "" {
 			return handler(srv, ss)
 		}
-		address := hh.Subject.SerialNumber
+
 		ctx := context.WithValue(ss.Context(), "address", address)
 		return handler(srv, newWrappedStream(ss, ctx))
 	}
