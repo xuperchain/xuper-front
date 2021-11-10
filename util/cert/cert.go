@@ -87,19 +87,30 @@ func GenCreds() (credentials.TransportCredentials, error) {
 
 }
 
+//证书类型,front只能有一种模式,国密(1)或者非国密(0)
+var cryptoType int = -1
+
 func IsGM() (bool, error) {
-	cacert, err := ioutil.ReadFile(config.GetConfig().XchainServer.TlsPath + "/" + CACERT)
-	if err != nil {
-		return false, err
-	}
-	pb, _ := pem.Decode(cacert)
-	x509cert, err := x509.ParseCertificate(pb.Bytes)
-	if err != nil {
-		return false, err
-	}
-	if strings.Contains(strings.ToLower(x509cert.SignatureAlgorithm.String()), "sm") {
+	if cryptoType == 1 { //国密
 		return true, nil
-	} else {
+	} else if cryptoType >= 0 { //非国密
 		return false, nil
+	} else {
+		cacert, err := ioutil.ReadFile(config.GetConfig().XchainServer.TlsPath + "/" + CACERT)
+		if err != nil {
+			return false, err
+		}
+		pb, _ := pem.Decode(cacert)
+		x509cert, err := x509.ParseCertificate(pb.Bytes)
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(strings.ToLower(x509cert.SignatureAlgorithm.String()), "sm") {
+			cryptoType = 1
+			return true, nil
+		} else {
+			cryptoType = 0
+			return false, nil
+		}
 	}
 }
