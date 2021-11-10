@@ -23,7 +23,12 @@ const CERT = "cert.pem"
 const PRIVATEKEY = "private.key"
 const NODEHDPRIKEY = "hd_private.key"
 
+var creds credentials.TransportCredentials = nil
+
 func GenCreds() (credentials.TransportCredentials, error) {
+	if creds != nil {
+		return creds, nil
+	}
 	crt, err := ioutil.ReadFile(config.GetConfig().XchainServer.TlsPath + "/" + CACERT)
 	if err != nil {
 		return nil, err
@@ -46,14 +51,14 @@ func GenCreds() (credentials.TransportCredentials, error) {
 		//cn := config.GetNet() + ".server.com"
 		cn := config.GetNet()
 		tlsCOnfig := &tls.Config{
-			GMSupport:    &tls.GMSupport{},
+			GMSupport:    tls.NewGMSupport(),
 			ServerName:   cn,
 			Certificates: []tls.Certificate{certificate, certificate},
 			RootCAs:      certPool,
 			ClientCAs:    certPool,
 			ClientAuth:   tls.RequireAndVerifyClientCert,
 		}
-		creds := gmcredentials.NewTLS(
+		creds = gmcredentials.NewTLS(
 			tlsCOnfig,
 		)
 
@@ -79,7 +84,7 @@ func GenCreds() (credentials.TransportCredentials, error) {
 			ClientCAs:    certPool,
 			ClientAuth:   defaulttls.RequireAndVerifyClientCert,
 		}
-		creds := credentials.NewTLS(
+		creds = credentials.NewTLS(
 			tlsCOnfig,
 		)
 		return creds, nil

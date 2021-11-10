@@ -25,19 +25,30 @@ func GetGMCryptoClient() base.CryptoClient {
 	return base.CryptoClient(xcc)
 }
 
+//key的加密类型,front只能有一种模式,国密(1)或者非国密(0)
+var keyType int = -1
+
 func KeyIsGM() (bool, error) {
-	keyPEMBlock, err := ioutil.ReadFile(config.GetKeys() + "public.key")
-	if err != nil {
-		return false, err
-	}
-	ecdsaPublicKey := &account.ECDSAPublicKey{}
-	err = json.Unmarshal(keyPEMBlock, ecdsaPublicKey)
-	if err != nil {
-		return false, err
-	}
-	if strings.Contains(ecdsaPublicKey.Curvname, "SM") {
+	if keyType == 1 { //国密
 		return true, nil
-	} else {
+	} else if keyType >= 0 { //非国密
 		return false, nil
+	} else {
+		keyPEMBlock, err := ioutil.ReadFile(config.GetKeys() + "public.key")
+		if err != nil {
+			return false, err
+		}
+		ecdsaPublicKey := &account.ECDSAPublicKey{}
+		err = json.Unmarshal(keyPEMBlock, ecdsaPublicKey)
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(strings.ToLower(ecdsaPublicKey.Curvname), "sm") {
+			keyType = 1
+			return true, nil
+		} else {
+			keyType = 0
+			return false, nil
+		}
 	}
 }
