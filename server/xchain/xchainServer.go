@@ -234,7 +234,6 @@ func CheckInterceptor() grpc.StreamServerInterceptor {
 		if isgm {
 			gmhh, err := tjx509.ParseCertificate(p.AuthInfo.(gmcredentials.TLSInfo).State.PeerCertificates[0].Raw)
 			if err != nil {
-				log.Error("parseCertificate gm failed,data wasadada", p.AuthInfo.(credentials.TLSInfo).State.PeerCertificates[0].Raw)
 				log.Error("parseCertificate gm failed", err.Error())
 				return errors.New("gm cert is not valid")
 			}
