@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"strings"
+	"sync"
 
 	"github.com/xuperchain/crypto/client/service/base"
 	"github.com/xuperchain/crypto/client/service/gm"
@@ -28,7 +29,12 @@ func GetGMCryptoClient() base.CryptoClient {
 //key的加密类型,front只能有一种模式,国密(1)或者非国密(0)
 var keyType int = -1
 
+// 全局变量修改加锁
+var mu sync.Mutex
+
 func KeyIsGM() (bool, error) {
+	mu.Lock()
+	defer mu.Unlock()
 	if keyType == 1 { //国密
 		return true, nil
 	} else if keyType >= 0 { //非国密
