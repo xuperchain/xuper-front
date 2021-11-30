@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2019. Baidu Inc. All Rights Reserved.
  */
-package service
+package ca
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/xuperchain/crypto/client/service/base"
 	"github.com/xuperchain/xuper-front/config"
 	"github.com/xuperchain/xuper-front/crypto"
 	"github.com/xuperchain/xuper-front/dao"
@@ -33,14 +34,25 @@ type CurrentCert struct {
 
 // 访问ca的签名校验, 检验的data根据接口不同而不同
 func sign(data []byte) (*pb.Sign, error) {
+
+	// 判断公钥是否是GM，来解析AK（是否是GM）
+	b, err := crypto.KeyIsGM()
+	if err != nil {
+		log.Warn("get key is gm failed", "err", err)
+		return nil, err
+	}
+	var cryptoClient base.CryptoClient
+	if b {
+		cryptoClient = crypto.GetGMCryptoClient()
+	} else {
+		cryptoClient = crypto.GetCryptoClient()
+	}
 	// 获取账户
-	cryptoClient := crypto.GetCryptoClient()
 	privateKey, err := cryptoClient.GetEcdsaPrivateKeyFromFile(config.GetKeys() + "private.key")
 	if err != nil {
 		log.Warn("CaServer.sign: can not get `private.key`", "err", err)
 		return nil, err
 	}
-
 	pubKey, err := cryptoClient.GetEcdsaPublicKeyJsonFormatStr(privateKey)
 	if err != nil {
 		log.Warn("CaServer.sign: can not get `public.key`", "err", err)
@@ -62,6 +74,7 @@ func sign(data []byte) (*pb.Sign, error) {
 		Sign:      sign,
 		Nonce:     nonce,
 	}, nil
+
 }
 
 // 请求ca增加节点
@@ -137,8 +150,19 @@ func GetCurrentCert(net string) (*CurrentCert, string, error) {
 		return nil, "", err
 	}
 	defer conn.Close()
+	// 判断公钥 public.key 是否是GM，来解析AK（是否是GM）
+	b, err := crypto.KeyIsGM()
+	if err != nil {
+		log.Warn("get key is gm failed", "err", err)
+		return nil, "", err
+	}
+	var cryptoClient base.CryptoClient
+	if b {
+		cryptoClient = crypto.GetGMCryptoClient()
+	} else {
+		cryptoClient = crypto.GetCryptoClient()
+	}
 
-	cryptoClient := crypto.GetCryptoClient()
 	// get publicKey
 	publicKey, err := cryptoClient.GetEcdsaPublicKeyFromFile(config.GetKeys() + "public.key")
 	address, err := cryptoClient.GetAddressFromPublicKey(publicKey)
