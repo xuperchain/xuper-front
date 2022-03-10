@@ -103,12 +103,11 @@ func startFront(quit chan int) {
 		// 1.拉取证书
 		if err := serv_ca.GetAndWriteCert(netName); err != nil {
 			// 拉取证书失败
+			panic(fmt.Errorf("GetAndWriteCert err: %v", err))
 		}
 
 		// 2.定时拉取过期证书
-		if err := serv_ca.GetRevokeListRegularly(netName); err != nil {
-			// 拉取撤销证书失败
-		}
+		go serv_ca.GetRevokeListRegularly(netName)
 	}
 
 	// 2.启动xchain节点代理,内部判断caSwitch

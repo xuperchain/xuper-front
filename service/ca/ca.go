@@ -225,24 +225,19 @@ func GetRevokeList(net string) error {
 }
 
 // 启动定时器拉取撤销证书
-func GetRevokeListRegularly(net string) error {
-	go func() {
-		for {
-			// 拉取证书撤销列表
+func GetRevokeListRegularly(net string) {
+	// 每隔10分钟拉取一次撤销的证书
+	tick := time.NewTicker(time.Minute * 10)
+	defer tick.Stop()
+	for {
+		select {
+		case <-tick.C:
 			err := GetRevokeList(net)
 			if err != nil {
-				log.Error("CaServer.GetRevokeListRegularly: get revoke list", "err", err)
+				log.Error("CaServer.GetRevokeListRegularly: get revoke list err", err)
 			}
-			now := time.Now()
-			// 每十分钟执行一次
-			next := now.Add(time.Minute * 10)
-			next = time.Date(next.Year(), next.Month(), next.Day(), next.Hour(), next.Minute(), next.Second(), 0,
-				next.Location())
-			t := time.NewTimer(next.Sub(now))
-			<-t.C
 		}
-	}()
-	return nil
+	}
 }
 
 // 证书是否有效,使用serialNum进行判断
