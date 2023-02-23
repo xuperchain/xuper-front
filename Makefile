@@ -17,8 +17,8 @@ OUTDIRNORMAL := $(OUTDIR)/front
 
 # init GO & GOD path
 export GOROOT  := $(shell go env GOROOT)
-export GOPATH  := $(HOMEDIR)/../../../
-export PATH    := $(GOPATH)/bin:$(GOROOT)/bin:$(PATH)
+#export GOPATH  := $(HOMEDIR)/../../../
+#export PATH    := $(GOPATH)/bin:$(GOROOT)/bin:$(PATH)
 export GOPROXY :=
 
 
